@@ -78,7 +78,8 @@
   GL.rpc = function(fn, args, anon){ return raw('POST', '/rest/v1/rpc/' + fn, args || {}, null, anon ? false : undefined); };
 
   // ── 写真の保管 ──
-  GL.upload = function(bucket, path, file){ return raw('POST', '/storage/v1/object/' + bucket + '/' + path, file, { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' }, false); };
+  // withLogin：ログイン中の人として送る（身分証の画像など）。省略時は申込時の写真と同じく、ログインなしで送る
+  GL.upload = function(bucket, path, file, withLogin){ return raw('POST', '/storage/v1/object/' + bucket + '/' + path, file, { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' }, withLogin ? undefined : false); };
   GL.list = function(bucket, prefix){ return raw('POST', '/storage/v1/object/list/' + bucket, { prefix: prefix, limit: 50, sortBy: { column: 'name', order: 'asc' } }); };
   GL.signedUrl = async function(bucket, path){ var j = await raw('POST', '/storage/v1/object/sign/' + bucket + '/' + path, { expiresIn: 600 }); return GL.url + '/storage/v1' + (j.signedURL || j.signedUrl); };
 

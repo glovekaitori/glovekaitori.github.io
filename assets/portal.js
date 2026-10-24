@@ -130,9 +130,9 @@ function taskForm(c, t){
     + field(id + '-address', 'ご住所（住民票どおり）', inp(id + '-address', { req:1, ac:'street-address' }), 'ご本人確認のための郵便をお送りします。')
     + field(id + '-tel', '電話番号', inp(id + '-tel', { type:'tel', ac:'tel', mode:'tel' }))
     + '<input type="hidden" name="method" value="mibun_copy_kakitome_koza">'
-    + '<div class="field"><span class="lbl">身分証明書の画像（表・裏）</span><p class="hint">運転免許証・マイナンバーカード（表面のみ。裏面の個人番号は送らないでください。裏は住所変更の記載がある場合だけ）・健康保険証などの写真をお送りください。お名前・ご住所・生年月日が読めるように撮影してください。画像は担当者だけが確認します。</p>'
+    + '<div class="field"><span class="lbl">身分証明書の画像（表・裏）</span><p class="hint">運転免許証は表と裏、マイナンバーカードは表面だけ（裏面の個人番号は写さないでください）をお送りください。お名前・ご住所・生年月日が読めるように撮影してください。画像は担当者だけが確認します。</p>'
     + '<label for="' + id + '-idFront">表面</label><input type="file" id="' + id + '-idFront" name="idFront" accept="image/*">'
-    + '<label for="' + id + '-idBack" style="margin-top:8px;display:block">裏面</label><input type="file" id="' + id + '-idBack" name="idBack" accept="image/*"></div>'
+    + '<label for="' + id + '-idBack" style="margin-top:8px;display:block">裏面（運転免許証など、裏にも記載がある場合）</label><input type="file" id="' + id + '-idBack" name="idBack" accept="image/*"></div>'
     + '<p class="hint">確認の流れ：①画像をお送りいただく → ②ご住所あてに「転送不要」の簡易書留をお送りします（ご本人またはご家族の方がお受け取りください）→ ③届いたことを確認して完了です。買取代金は、確認したお名前と同じ名義の口座にだけお振込みします。</p>'
     + '<div class="btns"><button class="btn" type="submit">確認情報を送る</button></div></form>';
   if(t.key === 'pickup') f = '<form class="ptask-f" data-do="pickup" novalidate>' + TRIAL_NOTE
@@ -246,15 +246,15 @@ function vStatus(){
     try{
       if(f.dataset.do === 'identity'){
         if(!d.fullName || !d.address || !d.birthdate) throw new Error('お名前・生年月日・ご住所を入力してください');
-        var imgs = [d.idFront, d.idBack]; delete d.idFront; delete d.idBack;
-        if(imgs.some(function(x){ return !x || !x.size; })) throw new Error('身分証明書の表面と裏面の画像を選んでください');
+        var imgs = [d.idFront, d.idBack].filter(function(x){ return x && x.size; }); delete d.idFront; delete d.idBack;
+        if(!imgs.length) throw new Error('身分証明書（表面）の画像を選んでください');
         if(imgs.some(function(x){ return x.size > 8388608; })) throw new Error('画像は1枚8MBまでです');
         btn.dataset.t = btn.textContent; btn.disabled = true; btn.textContent = '画像を送っています…';
         d.files = [];
         for(var k = 0; k < imgs.length; k++){
           var ext = (/png/.test(imgs[k].type) ? 'png' : /webp/.test(imgs[k].type) ? 'webp' : /hei/.test(imgs[k].type) ? 'heic' : 'jpg');
           var path = app + '/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '-' + (k ? 'ura' : 'omote') + '.' + ext;
-          await GL.upload('idcopy', path, imgs[k]); d.files.push(path);
+          await GL.upload('idcopy', path, imgs[k], true); d.files.push(path);
         }
         call = ['portal_submit_identity', { p_app: app, p: d }]; done = 'ご本人確認の情報と身分証明書の画像を受け付けました。ご住所あてに「転送不要」の簡易書留をお送りしますので、お受け取りください。';
       }
