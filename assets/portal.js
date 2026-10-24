@@ -92,7 +92,7 @@ function tasks(c){
   if(c.actor === 'agent' && pendingM) T.push({ key:'wait', title:'ご本人の署名をお待ちください', desc:'ご本人に「委任状のご確認」のメールを送りました。届いていない場合は、受付番号 ' + c.receiptNo + ' をお伝えのうえ、お客様用画面の「契約・書類」から署名いただくようご案内ください。' });
   if(c.actor === 'agent' && live.length && !pendingM && !c.mandateActive && (idc.agentRequested || idc.agentDone)) T.push({ key:'wait', title:'委任が有効になるのをお待ちください', desc:'売主ご本人の委任状への署名と、代理の方の本人確認が済むと、お手続きを進められます。' });
   if(pendingMandate(c)) T.push({ key:'link', title:'委任状に署名する', desc:'代理の方に任せる範囲をご確認のうえ、ご本人が署名してください。', href:'documents' });
-  if(c.actor === 'seller' && !idc.done && !idc.requested && EARLY.concat(['goods_received','appraising']).indexOf(st) >= 0) T.push({ key:'identity', title:'ご本人確認の情報を送る', desc:'古物営業法により、買取の前にご本人確認が必要です。確認の方法もお選びいただけます。' });
+  if(c.actor === 'seller' && !idc.done && !idc.requested && EARLY.concat(['goods_received','appraising']).indexOf(st) >= 0) T.push({ key:'identity', title:'ご本人確認の情報を送る', desc:'古物営業法により、買取の前にご本人確認が必要です。お名前・ご住所などと、身分証明書の画像（表・裏）をお送りください。' });
   if(canPickup(c) && !pr && !pk && EARLY.indexOf(st) >= 0) T.push({ key:'pickup', title:'集荷の方法と日時を選ぶ', desc:'梱包キットのお届け、ご自身での発送、直接集荷のご相談からお選びください。' });
   if(canPickup(c) && pr && (pr.method === 'kit' || pr.method === 'self_ship') && !pr.trackingNo && !(pk && pk.receivedAt)) T.push({ key:'tracking', title:'発送したら伝票番号を入力する', desc: pr.method === 'kit' ? '梱包キットが届いたら、お品物を入れて発送し、伝票番号をお知らせください。' : 'お品物を発送したら、伝票番号をお知らせください。到着を確認しやすくなります。' });
   if(c.appraisal && c.appraisal.status === 'notified' && !expired(c.appraisal)) T.push({ key:'link', title:'査定結果を確認して回答する', desc:'お品物ごとに「売る」か「返却」を選び、そのまま契約まで進めます。回答期限は ' + dt(c.appraisal.expiresAt) + ' です。', href:'result' });
@@ -115,7 +115,7 @@ function waitText(c){
   if(st === 'appraising' || st === 'goods_received' || (pk && pk.receivedAt)) return 'お品物を受け取り、査定しています';
   if(pr && pr.trackingNo) return 'お品物の到着をお待ちしています';
   if(pr) return '集荷の手配をしています';
-  if(c.identity && c.identity.requested && !c.identity.done) return 'ご本人確認の準備をしています';
+  if(c.identity && c.identity.requested && !c.identity.done) return 'ご住所あてに「転送不要」の簡易書留をお送りします。お受け取りください';
   return 'ご連絡をお待ちください';
 }
 function field(id, label, input, hint){ return '<div class="field"><label for="' + id + '">' + label + '</label>' + input + (hint ? '<p class="hint">' + hint + '</p>' : '') + '</div>'; }
@@ -129,7 +129,11 @@ function taskForm(c, t){
     + field(id + '-occupation', 'ご職業', inp(id + '-occupation', { req:1, ac:'organization-title' }), '例：会社員、自営業、俳優。古物営業法で確認が必要な項目です。')
     + field(id + '-address', 'ご住所（住民票どおり）', inp(id + '-address', { req:1, ac:'street-address' }), 'ご本人確認のための郵便をお送りします。')
     + field(id + '-tel', '電話番号', inp(id + '-tel', { type:'tel', ac:'tel', mode:'tel' }))
-    + '<div class="field"><span class="lbl">ご本人確認の方法</span><div class="choices"><label><input type="radio" name="method" value="honnin_gentei_yubin" checked>本人限定受取郵便（郵便局の窓口で受け取り）</label><label><input type="radio" name="method" value="mibun_copy_kakitome_koza">身分証の写しを郵送＋書留の受け取り</label><label><input type="radio" name="method" value="consult">担当者と相談したい</label></div></div>'
+    + '<input type="hidden" name="method" value="mibun_copy_kakitome_koza">'
+    + '<div class="field"><span class="lbl">身分証明書の画像（表・裏）</span><p class="hint">運転免許証・マイナンバーカード（表面のみ。裏面の個人番号は送らないでください。裏は住所変更の記載がある場合だけ）・健康保険証などの写真をお送りください。お名前・ご住所・生年月日が読めるように撮影してください。画像は担当者だけが確認します。</p>'
+    + '<label for="' + id + '-idFront">表面</label><input type="file" id="' + id + '-idFront" name="idFront" accept="image/*">'
+    + '<label for="' + id + '-idBack" style="margin-top:8px;display:block">裏面</label><input type="file" id="' + id + '-idBack" name="idBack" accept="image/*"></div>'
+    + '<p class="hint">確認の流れ：①画像をお送りいただく → ②ご住所あてに「転送不要」の簡易書留をお送りします（ご本人またはご家族の方がお受け取りください）→ ③届いたことを確認して完了です。買取代金は、確認したお名前と同じ名義の口座にだけお振込みします。</p>'
     + '<div class="btns"><button class="btn" type="submit">確認情報を送る</button></div></form>';
   if(t.key === 'pickup') f = '<form class="ptask-f" data-do="pickup" novalidate>' + TRIAL_NOTE
     + '<div class="field"><span class="lbl">集荷の方法</span><div class="choices"><label><input type="radio" name="method" value="kit" checked>梱包キットを送ってほしい</label><label><input type="radio" name="method" value="self_ship">自分で梱包して送る</label><label><input type="radio" name="method" value="direct">直接集荷を相談したい</label></div><p class="hint">直接集荷は、お品物や場所に応じて個別にご案内します。送料はG-LOVEが負担します。</p></div>'
@@ -240,7 +244,20 @@ function vStatus(){
     new FormData(f).forEach(function(v, k){ d[k] = typeof v === 'string' ? v.trim() : v; });
     var call, done;
     try{
-      if(f.dataset.do === 'identity'){ if(!d.fullName || !d.address || !d.birthdate) throw new Error('お名前・生年月日・ご住所を入力してください'); call = ['portal_submit_identity', { p_app: app, p: d }]; done = 'ご本人確認の情報を受け付けました。確認の郵便などは担当者からご案内します。'; }
+      if(f.dataset.do === 'identity'){
+        if(!d.fullName || !d.address || !d.birthdate) throw new Error('お名前・生年月日・ご住所を入力してください');
+        var imgs = [d.idFront, d.idBack]; delete d.idFront; delete d.idBack;
+        if(imgs.some(function(x){ return !x || !x.size; })) throw new Error('身分証明書の表面と裏面の画像を選んでください');
+        if(imgs.some(function(x){ return x.size > 8388608; })) throw new Error('画像は1枚8MBまでです');
+        btn.dataset.t = btn.textContent; btn.disabled = true; btn.textContent = '画像を送っています…';
+        d.files = [];
+        for(var k = 0; k < imgs.length; k++){
+          var ext = (/png/.test(imgs[k].type) ? 'png' : /webp/.test(imgs[k].type) ? 'webp' : /hei/.test(imgs[k].type) ? 'heic' : 'jpg');
+          var path = app + '/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '-' + (k ? 'ura' : 'omote') + '.' + ext;
+          await GL.upload('idcopy', path, imgs[k]); d.files.push(path);
+        }
+        call = ['portal_submit_identity', { p_app: app, p: d }]; done = 'ご本人確認の情報と身分証明書の画像を受け付けました。ご住所あてに「転送不要」の簡易書留をお送りしますので、お受け取りください。';
+      }
       if(f.dataset.do === 'pickup'){ var dates = [1,2,3].map(function(n){ return d['d' + n] ? d['d' + n] + (d['t' + n] ? ' ' + d['t' + n] : '') : ''; }).filter(Boolean); if(!d.address) throw new Error('ご住所を入力してください'); call = ['portal_request_pickup', { p_app: app, p: { method: d.method, address: d.address, recipient: d.recipient, tel: d.tel, dates: dates, note: d.note } }]; done = '集荷のご依頼を受け付けました。担当者から日程を確定してご連絡します。'; }
       if(f.dataset.do === 'tracking'){ call = ['portal_set_tracking', { p_app: app, p: d }]; done = '伝票番号を受け付けました。到着後に査定を始めます。'; }
       if(f.dataset.do === 'bank'){ if(!/^[0-9]{6,8}$/.test(d.accountNumber || '')) throw new Error('口座番号は6〜8桁の数字で入力してください'); call = ['portal_register_bank', { p_app: app, p: d }]; done = '振込先を登録しました。'; }
@@ -255,7 +272,7 @@ function vStatus(){
       btn.disabled = true;
       await GL.rpc(call[0], call[1]); await load(); msg(done);
       var back = document.getElementById('c-' + app.slice(0, 8)); if(back) back.scrollIntoView({ block:'start' });
-    }catch(x){ msg(x.message, true); if(btn) btn.disabled = false; }
+    }catch(x){ msg(x.message, true); if(btn){ btn.disabled = false; if(btn.dataset.t) btn.textContent = btn.dataset.t; } }
   };
 }
 

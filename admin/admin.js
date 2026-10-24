@@ -159,8 +159,9 @@ async function viewCases(){ var my = S.seq;
 }
 
 // ============ 案件の詳細 ============
-var C = null;
+var C = null, IDV = null;
 async function loadCase(id){
+  if(!IDV){ try{ IDV = await GL.rpc('staff_idv_methods', {}); }catch(e){} }
   var a = (await GL.select('applications', { id: 'eq.' + id }))[0];
   if(!a) throw new Error('案件が見つからないか、閲覧の権限がありません');
   var by = { application_id: 'eq.' + id };
@@ -252,9 +253,9 @@ async function viewCase(id){ var my = S.seq;
   html += '</div><div>';
   // 本人確認
   if(can('appraiser','finance')) html += card('s-idc', '本人確認（古物営業法）', '電子署名とは別の記録です',
-    (C.idc.length ? '<div class="tw"><table><thead><tr><th>対象</th><th>氏名・住所・職業・年齢</th><th>方法</th><th>確認</th></tr></thead><tbody>' + C.idc.map(function(x){ return '<tr><td class="nw">' + esc(SUBJECT[x.subject]) + '</td><td>' + esc(x.full_name) + '<br><small>' + esc(x.address) + '　' + esc(x.occupation || '') + '　' + (x.age != null ? esc(x.age) + '歳' : '') + '</small></td><td>' + esc(METHOD[x.method]) + (x.evidence_note ? '<br><small>' + esc(x.evidence_note) + '</small>' : '') + '</td><td>' + dt(x.checked_at) + '<br><small>' + esc(staffName(x.checked_by)) + '</small></td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="note bad">本人確認の記録がありません。確認が済むまで売買契約は作成できません。</p>')
+    (C.idc.length ? '<div class="tw"><table><thead><tr><th>対象</th><th>氏名・住所・職業・年齢</th><th>方法</th><th>確認</th></tr></thead><tbody>' + C.idc.map(function(x){ return '<tr><td class="nw">' + esc(SUBJECT[x.subject]) + '</td><td>' + esc(x.full_name) + '<br><small>' + esc(x.address) + '　' + esc(x.occupation || '') + '　' + (x.age != null ? esc(x.age) + '歳' : '') + '</small></td><td>' + esc(METHOD[x.method]) + (x.kakitome_no ? '<br><small>書留 ' + esc(x.kakitome_no) + '（到達 ' + esc(x.delivered_on || '') + '）</small>' : '') + (x.evidence_note ? '<br><small>' + esc(x.evidence_note) + '</small>' : '') + '</td><td>' + dt(x.checked_at) + '<br><small>' + esc(staffName(x.checked_by)) + '</small></td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="note bad">本人確認の記録がありません。確認が済むまで売買契約は作成できません。</p>')
     + (can('appraiser') ? '<details><summary style="cursor:pointer;color:var(--gold-hi)">本人確認を記録する</summary><form class="f" data-form="idc" style="margin-top:10px"><div class="row"><label class="l">対象<select name="subject"><option value="seller">売主</option><option value="agent">代理人</option><option value="corporate_staff">法人の担当者</option></select></label><label class="l">氏名<input name="full_name" required></label><label class="l">職業<input name="occupation"></label><label class="l">年齢<input name="age" type="number" min="0" max="130"></label></div>'
-      + '<label class="l">住所<input name="address" required></label><label class="l">確認の方法<select name="method">' + Object.keys(METHOD).map(function(k){ return '<option value="' + k + '">' + METHOD[k] + '</option>'; }).join('') + '</select></label><label class="l">証跡のメモ（書留の番号・確認書類など）<input name="evidence_note"></label><div class="btns"><button class="btn sm">記録する</button></div></form></details>' : ''));
+      + '<label class="l">住所<input name="address" required></label><label class="l">確認の方法<select name="method">' + (IDV && IDV.length ? IDV : Object.keys(METHOD)).map(function(k){ return '<option value="' + k + '">' + METHOD[k] + '</option>'; }).join('') + '</select></label><div class="row"><label class="l">転送不要の簡易書留の番号<input name="kakitome_no" placeholder="例：1234-5678-9012"></label><label class="l">お客様に届いた日（到達日）<input name="delivered_on" type="date"></label></div><p class="note">申告された住所あてに「転送不要」の簡易書留を送り、郵便局の追跡で「お届け済み」になってから記録してください。身分証の画像は、お客様が送った画像が自動で記録に付きます。代金は確認した名義と同じ名義の口座にだけ振り込みます。</p><label class="l">証跡のメモ（確認した書類の種類など）<input name="evidence_note" placeholder="例：運転免許証"></label><div class="btns"><button class="btn sm">記録する</button></div></form></details>' : ''));
   // 集荷
   if(can('reception','appraiser')) html += card('s-pick', '集荷・受領', '直接集荷は個別に判断し、理由を残します',
     (C.pickups.length ? '<div class="tw"><table><thead><tr><th>方法</th><th>予定・配送</th><th>判断理由</th><th>受領</th></tr></thead><tbody>' + C.pickups.map(function(x){ return '<tr><td>' + (x.method === 'direct' ? '直接集荷' : '宅配') + '</td><td>' + dt(x.scheduled_at) + '<br><small>' + esc(x.carrier || '') + ' ' + esc(x.tracking_no || '') + '</small></td><td>' + esc(x.decision_reason || '—') + '</td><td>' + (x.received_at ? dt(x.received_at) + '<br><small>' + esc(x.received_note || '') + '</small>' : '<form class="btns" data-form="receive" data-id="' + x.id + '"><input name="received_note" placeholder="受領時の状態・点数" style="width:170px"><button class="btn sm">受領を記録</button></form>') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="empty">集荷の記録はありません</p>')
@@ -294,7 +295,7 @@ async function viewCase(id){ var my = S.seq;
 var EVENT = { nda_requested:'秘密保持契約を希望', mandate_requested:'委任状を作成して署名を依頼', mandate_accepted:'受任者として委任状に署名', identity_submitted:'本人確認の情報を送信', pickup_requested:'集荷を依頼', shipped:'発送（伝票番号を入力）', bank_registered:'振込先を登録', return_address:'返却先を確認', appraisal_answered:'査定に回答', contract_signed:'書類に署名', mandate_signed:'委任状に署名', mandate_revoked:'委任を撤回' };
 var NOTIF = { new_application:'新しい申込', receipt:'受付番号', appraisal_ready:'査定結果', appraisal_reminder:'査定の再通知', return_notice:'返却予定', staff_reminder:'担当者へ再通知', staff_return_notice:'担当者へ返却予定', contract_ready:'契約書', paid:'振込完了', appraisal_answered:'回答あり', mandate_ready:'委任状', mandate_revoked:'委任撤回', new_contact:'問い合わせ', staff_message:'担当者からの連絡', customer_message:'お客様からの連絡', customer_request:'お客様の手続き', mandate_requested:'代理人が委任状を作成', mandate_signed:'委任状の署名完了', support_new:'チャット相談（担当者へ切替）', test:'通知のテスト', nda_ready:'秘密保持契約書', contract_closed:'契約成立（お客様へ）', sale_closed:'契約成立（担当者へ）' };
 
-var IDM = { honnin_gentei_yubin:'本人限定受取郵便', mibun_copy_kakitome_koza:'身分証の写し＋書留', consult:'相談したい' };
+var IDM = { honnin_gentei_yubin:'本人限定受取郵便', mibun_copy_kakitome_koza:'身分証の画像＋転送不要書留＋同名義口座', consult:'相談したい' };
 var PKM = { kit:'梱包キットを送ってほしい', self_ship:'自分で梱包して送る', direct:'直接集荷を相談したい' };
 function needsAction(c){
   var last = c.msgs[c.msgs.length - 1];
@@ -308,7 +309,7 @@ function renderRequests(){
   var out = '';
   if(C.idr.length) out += '<h3 style="font-size:13px;color:var(--gold-hi)">本人確認の申告</h3><div class="tw"><table><tbody>' + C.idr.map(function(r){
     var done = C.idc.some(function(x){ return x.subject === r.subject; });
-    return '<tr><td class="nw">' + (r.subject === 'agent' ? '代理人' : '売主') + '</td><td>' + esc(r.full_name) + '（' + esc(r.kana || '') + '）<br><small>' + esc(r.address) + '　' + esc(r.occupation || '') + '　' + (r.birthdate ? '生年月日 ' + esc(r.birthdate) : '') + '　' + esc(r.tel || '') + '</small></td><td>希望：' + esc(IDM[r.method_pref]) + '<br><small>' + dt(r.created_at) + '</small></td><td>'
+    return '<tr><td class="nw">' + (r.subject === 'agent' ? '代理人' : '売主') + '</td><td>' + esc(r.full_name) + '（' + esc(r.kana || '') + '）<br><small>' + esc(r.address) + '　' + esc(r.occupation || '') + '　' + (r.birthdate ? '生年月日 ' + esc(r.birthdate) : '') + '　' + esc(r.tel || '') + '</small>' + ((r.id_files || []).length ? '<br>' + r.id_files.map(function(n, i){ return '<button class="btn sub sm" type="button" data-act="idimg" data-id="' + esc(n) + '">身分証の画像' + (i + 1) + 'を見る</button>'; }).join(' ') : '') + '</td><td>方法：' + esc(IDM[r.method_pref]) + '<br><small>' + dt(r.created_at) + '</small></td><td>'
       + (done ? '<span class="pill ok">確認済</span>' : can('appraiser') ? '<button class="btn sub sm" data-act="useidr" data-id="' + r.id + '">本人確認欄に写す</button>' : '<span class="pill warn">確認待ち</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>';
   if(C.pkr.length) out += '<h3 style="font-size:13px;color:var(--gold-hi)">集荷の希望</h3><div class="tw"><table><tbody>' + C.pkr.map(function(r){
     return '<tr><td>' + esc(PKM[r.method]) + '<br><small>' + dt(r.created_at) + '</small></td><td>' + esc(r.address) + '<br><small>' + esc(r.recipient || '') + '　' + esc(r.tel || '') + '</small></td><td>希望日時：' + esc((r.dates || []).join('／') || '—') + (r.note ? '<br><small>' + esc(r.note) + '</small>' : '') + '</td><td>' + (r.tracking_no ? '<span class="pill info">発送済</span><br><small>' + esc(r.carrier || '') + ' ' + esc(r.tracking_no) + '</small>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
@@ -402,7 +403,7 @@ function bindCase(){
     if(k === 'view'){ var r = $('#doc-' + b.dataset.id); r.hidden = !r.hidden; return; }
     if(ASK[k] && !b.dataset.sure){ return askFirst(b, ASK[k]); }
     b.disabled = true;
-    try{ var msg = await ACTS[k](b.dataset.id); toast(msg || '保存しました'); if(k !== 'intact' && k !== 'useidr') await viewCase(C.app.id); else b.disabled = false; }
+    try{ var msg = await ACTS[k](b.dataset.id); toast(msg || '保存しました'); if(k !== 'intact' && k !== 'useidr' && k !== 'idimg') await viewCase(C.app.id); else b.disabled = false; }
     catch(x){ toast(x.message, true); b.disabled = false; delete b.dataset.sure; }
   };
 }
@@ -419,7 +420,7 @@ var FORMS = {
   reply: function(d){ return GL.insert('messages', { application_id: C.app.id, sender: GL.userId(), sender_kind: 'staff', body: d.body }); },
   note: function(d){ return GL.insert('application_notes', { application_id: C.app.id, body: d.body, author: GL.userId() }); },
   mandate: function(d){ return GL.rpc('staff_create_mandate', { p_application: C.app.id, p: { agentName: d.agentName, agentOrg: d.agentOrg, agentEmail: d.agentEmail, validUntil: d.validUntil ? d.validUntil + 'T23:59:59+09:00' : '', apply: d.apply, pickup: d.pickup, approve: d.approve, documents: d.documents, sign: d.sign } }); },
-  idc: function(d){ return GL.insert('identity_checks', { application_id: C.app.id, subject: d.subject, full_name: d.full_name, address: d.address, occupation: d.occupation || null, age: d.age ? Number(d.age) : null, method: d.method, evidence_note: d.evidence_note || null, checked_by: GL.userId() }); },
+  idc: function(d){ return GL.insert('identity_checks', { application_id: C.app.id, subject: d.subject, full_name: d.full_name, address: d.address, occupation: d.occupation || null, age: d.age ? Number(d.age) : null, method: d.method, evidence_note: d.evidence_note || null, kakitome_no: d.kakitome_no || null, delivered_on: d.delivered_on || null, checked_by: GL.userId() }); },
   pickup: function(d){ if(d.method === 'direct' && !d.decision_reason) throw new Error('直接集荷の判断理由を入力してください'); return GL.insert('pickups', { application_id: C.app.id, method: d.method, scheduled_at: d.scheduled_at ? new Date(d.scheduled_at).toISOString() : null, carrier: d.carrier || null, tracking_no: d.tracking_no || null, decision_reason: d.decision_reason || null }); },
   receive: async function(d, f){ await GL.update('pickups', { id: f.dataset.id }, { received_at: new Date().toISOString(), received_by: GL.userId(), received_note: d.received_note || null }); if(['received','contacting','identity_pending','pickup_arranging','in_transit'].indexOf(C.app.status) >= 0) await GL.update('applications', { id: C.app.id }, { status: 'goods_received' }); },
   item: function(d){ return GL.insert('items', { application_id: C.app.id, category: d.category, description: d.description, quantity: Number(d.quantity || 1), features: d.features || null, condition_note: d.condition_note || null }); },
@@ -438,12 +439,17 @@ var FORMS = {
 var ACTS = {
   notify: async function(){ var ap = latestAppraisal(); if(C.lines.filter(function(l){ return l.appraisal_id === ap.id; }).length < C.items.length){ var f = $('form[data-form=lines]'); await FORMS.lines(formData(f)); } await GL.rpc('staff_notify_appraisal', { p_appraisal: ap.id }); return '査定結果を通知しました'; },
   newap: async function(){ var v = C.appraisals.reduce(function(m, x){ return Math.max(m, x.version); }, 0) + 1; await GL.insert('appraisals', { application_id: C.app.id, version: v }); if(['received','contacting','identity_pending','pickup_arranging','in_transit','goods_received'].indexOf(C.app.status) >= 0) await GL.update('applications', { id: C.app.id }, { status: 'appraising' }); return '査定の下書きを作成しました'; },
+  idimg: async function(name){
+    var b = $('[data-act=idimg][data-id="' + name.replace(/"/g, '') + '"]'), u = await GL.signedUrl('idcopy', name);
+    if(b && !(b.nextElementSibling && b.nextElementSibling.tagName === 'IMG')){ var im = new Image(); im.alt = '身分証明書の画像'; im.src = u; im.style.cssText = 'display:block;max-width:100%;max-height:420px;margin:8px 0;border:1px solid var(--line)'; b.after(im); }
+    return '身分証の画像を表示しました（この画像は査定・経理の担当者だけが見られます）';
+  },
   useidr: async function(id){
     var r = C.idr.filter(function(x){ return x.id === id; })[0], f = $('form[data-form=idc]'); if(!f) throw new Error('本人確認欄が見つかりません');
     f.closest('details').open = true; f.subject.value = r.subject; f.full_name.value = r.full_name; f.address.value = r.address; f.occupation.value = r.occupation || '';
     if(r.birthdate){ var b = new Date(r.birthdate), n = new Date(), age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); f.age.value = age; }
-    if(r.method_pref === 'honnin_gentei_yubin' || r.method_pref === 'mibun_copy_kakitome_koza') f.method.value = r.method_pref;
-    f.scrollIntoView({ block: 'center' }); return '申告の内容を写しました。確認の方法を実施してから「記録する」を押してください';
+    if([].slice.call(f.method.options).some(function(o){ return o.value === r.method_pref; })) f.method.value = r.method_pref;
+    f.scrollIntoView({ block: 'center' }); return '申告の内容を写しました。身分証の画像と申告内容が一致するか確かめ、転送不要の簡易書留を送ってください。届いたら書留の番号と到達日を入れて「記録する」を押します';
   },
   agentok: function(id){ return GL.update('mandates', { id: id }, { agent_identity_checked: true }); },
   intact: async function(id){ var ok = await GL.rpc('contract_intact', { p_contract: id }); if(!ok) throw new Error('改ざんの疑いがあります。本文または署名時の内容が一致しません'); return '改ざんは検出されませんでした'; },
