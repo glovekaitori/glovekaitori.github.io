@@ -9,7 +9,7 @@ window.GLOVE_CONFIG = {
   supabaseAnonKey: "sb_publishable_AdIxvk2v71wJFbXhLJU63Q_0-AMhB6z",
   // trial：試験運用（実在の情報を入力しないよう表示する）／live：本番運用
   //  本番に切り替えるときは、データベース側の intake_mode も live にする（接続手順書 第7章）
-  mode: "trial",
+  mode: "live",
   maxPhotos: 6,
   maxPhotoMB: 8
 };
