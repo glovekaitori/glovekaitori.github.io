@@ -78,6 +78,7 @@ var NAV = [
   ['codes','紹介コード', function(){ return can('sales','reception'); }],
   ['payments','振込', function(){ return can('finance'); }],
   ['ledger','古物台帳', function(){ return can('appraiser','finance'); }],
+  ['refs','実績相場', function(){ return can('appraiser','finance'); }],
   ['rates','掛率の設定', function(){ return can('appraiser','finance'); }],
   ['resale','再販・粗利', function(){ return can('appraiser','finance'); }],
   ['summary','集計', function(){ return true; }],
@@ -119,7 +120,7 @@ async function route(){
   try{
     if(key === 'case') return await viewCase(parts[1]);
     if(key === 'sheet') return await viewSheet(parts[1], parts[2] && parts[2] !== '-' ? parts[2] : null, Number(parts[3]) || 1);
-    var fn = { rates: viewRates, health: viewHealth, resale: viewResale, faq: viewFaq, support: viewSupport, backup: viewBackup, account: viewAccount, cases: viewCases, contacts: viewContacts, codes: viewCodes, payments: viewPayments, ledger: viewLedger, summary: viewSummary, staff: viewStaff, audit: viewAudit }[key];
+    var fn = { refs: viewRefs, rates: viewRates, health: viewHealth, resale: viewResale, faq: viewFaq, support: viewSupport, backup: viewBackup, account: viewAccount, cases: viewCases, contacts: viewContacts, codes: viewCodes, payments: viewPayments, ledger: viewLedger, summary: viewSummary, staff: viewStaff, audit: viewAudit }[key];
     await (fn || viewCases)();
   }catch(e){ m.innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; if(/ログイン/.test(e.message)) viewLogin(e.message); }
 }
@@ -532,7 +533,7 @@ async function viewAccount(){ var my = S.seq;
     if(d.p1.length < 12) return er.textContent = '12文字以上にしてください'; if(d.p1 !== d.p2) return er.textContent = '2回の入力が一致しません';
     try{ await GL.setPassword(d.p1); e.target.reset(); toast('パスワードを変更しました'); }catch(x){ er.textContent = x.message; } });
 }
-var BK_TABLES = ['support_faq','support_cat','resales','identity_requests','pickup_requests','return_requests','messages','support_threads','support_messages','staff','referral_codes','customers','applications','application_notes','contacts','mandates','identity_checks','pickups','items','appraisals','appraisal_lines','approvals','contracts','contract_signatures','bank_accounts','payments','returns','notifications','portal_events','audit_log'];
+var BK_TABLES = ['price_refs','support_faq','support_cat','resales','identity_requests','pickup_requests','return_requests','messages','support_threads','support_messages','staff','referral_codes','customers','applications','application_notes','contacts','mandates','identity_checks','pickups','items','appraisals','appraisal_lines','approvals','contracts','contract_signatures','bank_accounts','payments','returns','notifications','portal_events','audit_log'];
 async function viewBackup(){ var my = S.seq;
   if(my !== S.seq) return; $('#main').innerHTML = top('バックアップ') + '<div class="card" style="max-width:640px"><div class="in"><p>すべての記録を、合言葉で暗号化した1つのファイルにして、この端末に保存します。無料プランには自動の復元機能がないため、週に1回の保存をおすすめします。</p>'
     + '<p class="note">合言葉を忘れると復元できません。合言葉はファイルと別の場所に控えてください。写真を含めるとファイルが大きくなり、時間がかかります（目安：写真100枚で数十MB）。</p>'
@@ -865,6 +866,20 @@ function searchUrl(site, kw){ var q = encodeURIComponent(kw); if(SEARCH[site]) r
 function median(a){ a = a.slice().sort(function(x, y){ return x - y; }); var n = a.length; return n ? (n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2) : null; }
 function num(v){ v = String(v == null ? '' : v).replace(/[,，円\s]/g, ''); return v === '' || isNaN(Number(v)) ? null : Number(v); }
 function r1000(v){ return v == null ? null : Math.round(v / 1000) * 1000; }
+// 1万円未満は100円単位、それ以上は1000円単位で丸める
+function rnd(v){ return v == null ? null : (Math.abs(v) < 10000 ? Math.round(v / 100) * 100 : Math.round(v / 1000) * 1000); }
+function nrm(s){ return String(s == null ? '' : s).toLowerCase().normalize('NFKC').replace(/[\s・･\-‐－―_\/／()（）「」『』,，.。]/g, ''); }
+// 実績相場から、同じブランド・モデル（できれば同じ素材・柄、同じランク）のものを選ぶ
+function matchRefs(refs, D, rank){
+  var b = nrm(D.s1.brand), m = nrm(D.s1.model); if(!b || !m || !refs || !refs.length) return null;
+  var hit = refs.filter(function(r){ var rb = nrm(r.brand), rm = nrm(r.model); return rb && rm && (b.indexOf(rb) >= 0 || rb.indexOf(b) >= 0) && (m.indexOf(rm) >= 0 || rm.indexOf(m) >= 0); });
+  if(!hit.length) return null;
+  var hay = nrm(JSON.stringify([D.s1, D.s2, D.s5 || {}]));
+  var byLine = hit.filter(function(r){ return r.line && hay.indexOf(nrm(r.line)) >= 0; }); if(byLine.length) hit = byLine;
+  var byRank = hit.filter(function(r){ return r.rank === rank; }); if(byRank.length) hit = byRank;
+  var w = hit.map(function(r){ return r.wholesale; }).filter(function(v){ return v != null; });
+  return { n: hit.length, buy: median(hit.map(function(r){ return r.buy_price; })), whole: w.length ? median(w) : null, rows: hit, sameLine: byLine.length > 0, sameRank: byRank.length > 0 };
+}
 
 async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
   var a = (await GL.select('applications', { id: 'eq.' + appId }))[0]; if(!a) throw new Error('案件が見つかりません');
@@ -874,6 +889,7 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
   sheets = sheets.filter(function(x){ return (x.item_id || null) === (it ? it.id : null) && (it || (x.slot || 1) === slot); });
   // 品物ごとのシートがまだなければ、自動鑑定のシート（同じ順番のもの）を下書きに使う
   var baseRow = sheets[0] || (it ? (autos.filter(function(x){ return x.slot === items.indexOf(it) + 1; })[0] || autos.filter(function(x){ return x.slot === 1; })[0]) : null) || null;
+  var refs = can('appraiser','finance') ? await safe(GL.select('price_refs', { active: 'eq.true', order: 'ref_date.desc', limit: 2000 })) : [];
   var rules = {}; (await safe(GL.select('price_rules', { limit: 200 }))).forEach(function(r){ (rules[r.category] = rules[r.category] || {})[r.rank] = Number(r.rate); });
   var ai = (await safe(GL.select('ai_reviews', { application_id: 'eq.' + appId, order: 'created_at.desc', limit: 1 })))[0];
   if(my !== S.seq) return;
@@ -887,25 +903,35 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
 
   function calc(){
     var mids = []; SRC.forEach(function(g){ ((D.s3.market[g[0]]) || []).forEach(function(r){ if(r.ex) return; var lo = num(r.min), hi = num(r.max); if(lo != null || hi != null) mids.push(((lo != null ? lo : hi) + (hi != null ? hi : lo)) / 2); }); });
-    var est = num(D.s3.estOverride) != null ? num(D.s3.estOverride) : median(mids);
+    var domMids = []; ((D.s3.market.dom) || []).forEach(function(r){ if(r.ex) return; var lo = num(r.min), hi = num(r.max); if(lo != null || hi != null) domMids.push(((lo != null ? lo : hi) + (hi != null ? hi : lo)) / 2); });
     var caps = Object.keys(D.s2.neg).filter(function(k){ return D.s2.neg[k]; }).map(function(k){ return (NEGATIVES.filter(function(n){ return n[0] === k; })[0] || [0, 'C'])[1]; });
     var rank = [D.s1.rankGuess || 'B'].concat(caps).reduce(function(m, r){ return RANK_ORDER.indexOf(r) > RANK_ORDER.indexOf(m) ? r : m; }, 'N');
     var rate = (rules[cat] || rules['その他'] || {})[rank]; if(rate == null) rate = 0.6;
+    // 価格の基準：手入力 → 実績の卸値 → 業者間オークションの相場 → すべての相場の中央値
+    var rf = matchRefs(refs, D, rank), est, estSrc;
+    if(num(D.s3.estOverride) != null){ est = num(D.s3.estOverride); estSrc = '担当者の手入力'; }
+    else if(rf && rf.whole != null){ est = rf.whole; estSrc = '実績の卸値（' + rf.n + '件）'; }
+    else if(domMids.length){ est = median(domMids); estSrc = '業者間オークションの相場' + domMids.length + '件の中央値'; }
+    else { est = median(mids); estSrc = mids.length ? '入力した相場' + mids.length + '件の中央値（小売の価格を含むため高めに出ます）' : ''; }
+    var floor = rf ? rf.buy : null;
     var cost = ['repair','cleaning','storage','fees'].reduce(function(s, k){ return s + (num(D.s3.costs[k]) || 0); }, 0);
     var base = est != null ? est * rate - cost : null;
     var oth = OTHERS.map(function(n){ var o = D.s3.others[n] || {}; return o.ex ? [null, null] : [num(o.min), num(o.max)]; }).filter(function(p){ return p[0] != null || p[1] != null; });
     var othMax = oth.length ? Math.max.apply(null, oth.map(function(p){ return p[1] != null ? p[1] : p[0]; })) : null, othMin = oth.length ? Math.min.apply(null, oth.map(function(p){ return p[0] != null ? p[0] : p[1]; })) : null;
-    var std = r1000(base), low = r1000(base != null ? base * 0.9 : null), high = base != null ? r1000(Math.min(base * 1.08, othMax != null ? Math.max(othMax, base) : base * 1.08)) : null;
+    var std = rnd(base), low = rnd(base != null ? base * 0.9 : null), high = base != null ? rnd(Math.min(base * 1.08, othMax != null ? Math.max(othMax, base) : base * 1.08)) : null;
+    // 実績の買取額を下限にする（これより低い金額は提示しない）
+    if(floor != null){ low = floor; std = Math.max(std != null ? std : floor, floor); high = Math.max(high != null ? high : std, std); }
     var whole = D.s3.whole.map(function(w){ return { ch: w.ch, mid: (num(w.min) != null && num(w.max) != null) ? (num(w.min) + num(w.max)) / 2 : (num(w.min) != null ? num(w.min) : num(w.max)) }; }).filter(function(w){ return w.mid != null; }).sort(function(x, y){ return y.mid - x.mid; });
     var missing = [];
     [['brand','ブランド・メーカー名'],['model','モデル名'],['ref','型番'],['year','製造年'],['retail','定価']].forEach(function(f){ if(!String(D.s1[f[0]] || '').trim()) missing.push(f[1]); });
     if(!Object.keys(D.s1.acc).some(function(k){ return D.s1.acc[k] != null; })) missing.push('付属品の有無');
-    if(!mids.length) missing.push('中古市場の相場');
+    if(!mids.length && !rf) missing.push('中古市場の相場');
+    if(!rf) missing.push('実績相場（同じモデルの実績がないため、金額はAIの推定・要確認）');
     if(!oth.length) missing.push('他社の買取価格');
     if(num(D.s4.accuracy) == null) missing.push('真贋の精度');
     (D.s1.aiMissing || []).forEach(function(t){ missing.push(t + '（AIの指摘）'); });
     var pts = (CHECKLIST[cat] || CHECKLIST['その他']), done = pts.filter(function(t, i){ return D.s4.points[i]; }).length;
-    return { est: est, mids: mids.length, rank: rank, rate: rate, cost: cost, base: base, std: std, low: low, high: high, othMax: othMax, othMin: othMin, whole: whole, missing: missing, ptsDone: done, ptsAll: pts.length };
+    return { est: est, estSrc: estSrc, rf: rf, floor: floor, mids: mids.length, rank: rank, rate: rate, cost: cost, base: base, std: std, low: low, high: high, othMax: othMax, othMin: othMin, whole: whole, missing: missing, ptsDone: done, ptsAll: pts.length };
   }
   function talk(c){
     var fx = { '円安': '現在は円安の影響で、海外での需要が高まっており、相場が上がりやすい状況です。', '円高': '現在は円高の影響で、海外向けの需要がやや落ち着いています。', '横ばい': '為替は大きく動いておらず、相場は安定しています。' }[D.s5.fx];
@@ -915,7 +941,7 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
     var neg = Object.keys(D.s2.neg).filter(function(k){ return D.s2.neg[k]; });
     return 'お品物を拝見しました。' + [D.s1.brand, D.s1.model].filter(Boolean).join(' ') + (acc.length ? '、' + acc.join('・') + 'もそろっており、' : '') + '大切にお使いだったことが伝わります。\n\n'
       + '金額の根拠をご説明します。' + [fx, tr, st].filter(Boolean).join('') + '\n'
-      + '国内外のオークションや販売店での実際の取引の価格を調べ、' + (c.est != null ? '同じ状態の品物はおおむね' + yen(r1000(c.est)) + '前後で取引されています。' : '取引の価格を比べています。') + '\n'
+      + '国内外のオークションや販売店での実際の取引の価格を調べ、' + (c.est != null ? '同じ状態の品物はおおむね' + yen(rnd(c.est)) + '前後で取引されています。' : '取引の価格を比べています。') + '\n'
       + 'お品物の状態は「' + c.rank + '（' + (RANKS.filter(function(r){ return r[0] === c.rank; })[0] || ['', ''])[1] + '）」と判定しました。' + (neg.length ? neg.join('・') + 'の点を、正直に価格へ反映しています。' : '') + '\n'
       + 'そのうえで、販売までにかかるクリーニングや手数料などの費用を差し引き、' + (c.std != null ? yen(c.std) + 'をご提示します。' : '金額をご提示します。') + '\n\n'
       + 'ご納得いただけない場合は、お売りにならなくても費用はかかりません。売るかどうかは、お品物ごとに決めていただけます。';
@@ -957,15 +983,16 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
       + SRC.map(function(g){ var rows = D.s3.market[g[0]] = D.s3.market[g[0]] || g[2].map(function(n){ return { site: n, min: '', max: '', memo: '' }; });
           return '<p class="lbl">' + g[1] + '（' + g[2].length + '社）</p><div class="tw"><table class="mk"><thead><tr><th>サイト・企業</th><th>最小（円）</th><th>最高（円）</th><th>メモ</th><th>計算</th><th></th></tr></thead><tbody>' + rows.map(function(r, i){ var p = 's3.market.' + g[0] + '.' + i + '.';
             return '<tr' + (r.ex ? ' class="ex"' : '') + '><td>' + IN(p + 'site', r.site) + (r.url ? '<a class="src" href="' + esc(safeUrl(r.url)) + '" target="_blank" rel="noopener noreferrer">出典を開く</a>' : '') + '</td><td>' + NUMIN(p + 'min', r.min) + '</td><td>' + NUMIN(p + 'max', r.max) + '</td><td>' + IN(p + 'memo', r.memo) + '</td><td class="nw"><label><input type="checkbox" data-use="' + p + 'ex"' + (r.ex ? '' : ' checked') + '>使う</label></td><td><button class="btn sub sm" type="button" data-srch="' + esc(r.site) + '">検索</button></td></tr>'; }).join('') + '</tbody></table></div>'; }).join('')
-      + '<p class="verdict">推定市場販売価格：<b>' + yen(r1000(c.est)) + '</b>（入力した相場' + c.mids + '件の中央値）　<label style="font-size:12px">手入力で決める場合 ' + NUMIN('s3.estOverride', D.s3.estOverride) + '</label></p>'
+      + '<p class="verdict">価格の基準（推定卸値）：<b>' + yen(rnd(c.est)) + '</b>（' + esc(c.estSrc || '—') + '）　<label style="font-size:12px">手入力で決める場合 ' + NUMIN('s3.estOverride', D.s3.estOverride) + '</label></p>'
       + '<h3 class="h3">③ 卸値（販売先ごとの相場）</h3><div class="tw"><table class="mk"><thead><tr><th>販売先</th><th>最小（円）</th><th>最高（円）</th></tr></thead><tbody>' + D.s3.whole.map(function(w, i){ var p = 's3.whole.' + i + '.'; return '<tr><td>' + IN(p + 'ch', w.ch) + '</td><td>' + NUMIN(p + 'min', w.min) + '</td><td>' + NUMIN(p + 'max', w.max) + '</td></tr>'; }).join('') + '</tbody></table></div>'
       + '<p class="verdict">推奨の販売先：<b>' + (c.whole[0] ? esc(c.whole[0].ch) + '（約' + yen(r1000(c.whole[0].mid)) + '）' : '—') + '</b></p><label class="l">推奨の販売手法' + IN('s3.method', D.s3.method) + '</label>'
       + '<h3 class="h3">④ 他社の買取適正価格（7社）</h3><div class="tw"><table class="mk"><thead><tr><th>企業</th><th>最低（円）</th><th>最大（円）</th><th>計算</th></tr></thead><tbody>' + OTHERS.map(function(n){ var o = D.s3.others[n] = D.s3.others[n] || { min: '', max: '' }, p = 's3.others.' + n + '.'; return '<tr' + (o.ex ? ' class="ex"' : '') + '><td>' + esc(n) + (o.url ? '<a class="src" href="' + esc(safeUrl(o.url)) + '" target="_blank" rel="noopener noreferrer">出典</a>' : '') + (o.memo ? '<br><small>' + esc(o.memo) + '</small>' : '') + '</td><td>' + NUMIN(p + 'min', o.min) + '</td><td>' + NUMIN(p + 'max', o.max) + '</td><td class="nw"><label><input type="checkbox" data-use="' + p + 'ex"' + (o.ex ? '' : ' checked') + '>使う</label> <button class="btn sub sm" type="button" data-srch="' + esc(n) + '" data-buy="1">検索</button></td></tr>'; }).join('') + '</tbody></table></div>'
       + '<p class="verdict">他社の買取額：' + (c.othMin != null ? yen(c.othMin) + '〜' + yen(c.othMax) : '—') + '</p>'
       + '<h3 class="h3">⑤ 買取提示価格表</h3><div class="row"><label class="l">修繕（円）' + NUMIN('s3.costs.repair', D.s3.costs.repair) + '</label><label class="l">クリーニング（円）' + NUMIN('s3.costs.cleaning', D.s3.costs.cleaning) + '</label><label class="l">保管費（円）' + NUMIN('s3.costs.storage', D.s3.costs.storage) + '</label><label class="l">手数料等（円）' + NUMIN('s3.costs.fees', D.s3.costs.fees) + '</label></div>'
-      + '<table class="calc"><tbody><tr><th>推定市場販売価格</th><td class="r">' + yen(r1000(c.est)) + '</td></tr><tr><th>ジャンル別掛率（' + esc(cat) + '・' + c.rank + '）</th><td class="r">× ' + c.rate + '</td></tr><tr><th>修繕・クリーニング・保管・手数料</th><td class="r">− ' + yen(c.cost) + '</td></tr>'
+      + (c.rf ? '<p class="note ok" style="margin:0 0 8px">実績あり（' + c.rf.n + '件' + (c.rf.sameLine ? '・同じ素材/柄' : '') + (c.rf.sameRank ? '・同じランク' : '') + '）：買取 ' + yen(c.rf.buy) + '／卸 ' + yen(c.rf.whole) + '。下限は実績の買取額です（これより下げません）。<br><small>' + c.rf.rows.slice(0, 5).map(function(r){ return esc(r.model + (r.line ? '（' + r.line + '）' : '') + ' ' + (r.rank || '') + '：買取' + yen(r.buy_price) + '・卸' + yen(r.wholesale) + '・' + r.ref_date); }).join('<br>') + '</small></p>' : '<p class="note bad" style="margin:0 0 8px"><b>実績なし・AI推定のため要確認</b>：同じモデルの実績相場が登録されていません。金額はAIの推定に基づく参考値です。実績を「実績相場」に登録すると、次から自動で使います。</p>')
+      + '<table class="calc"><tbody><tr><th>価格の基準（推定卸値）</th><td class="r">' + yen(rnd(c.est)) + '</td></tr><tr><th>ジャンル別掛率（' + esc(cat) + '・' + c.rank + '）</th><td class="r">× ' + c.rate + '</td></tr><tr><th>修繕・クリーニング・保管・手数料</th><td class="r">− ' + yen(c.cost) + '</td></tr>'
       + '<tr class="tot"><th>算出結果</th><td class="r">' + yen(c.base != null ? Math.round(c.base) : null) + '</td></tr></tbody></table>'
-      + '<table class="calc"><thead><tr><th>提示の段階</th><th class="r">金額</th><th>使い方</th></tr></thead><tbody><tr><td>下限</td><td class="r">' + yen(c.low) + '</td><td>最初の提示の目安（算出結果の9割）</td></tr><tr class="tot"><td>標準</td><td class="r">' + yen(c.std) + '</td><td>通常の提示額</td></tr><tr><td>上限</td><td class="r">' + yen(c.high) + '</td><td>ご相談時の上限（算出結果の1.08倍、または他社の最大額まで）</td></tr></tbody></table>'
+      + '<table class="calc"><thead><tr><th>提示の段階</th><th class="r">金額</th><th>使い方</th></tr></thead><tbody><tr><td>下限</td><td class="r">' + yen(c.low) + '</td><td>' + (c.floor != null ? '実績の買取額（これより下げない）' : '最初の提示の目安（算出結果の9割）') + '</td></tr><tr class="tot"><td>標準</td><td class="r">' + yen(c.std) + '</td><td>通常の提示額</td></tr><tr><td>上限</td><td class="r">' + yen(c.high) + '</td><td>ご相談時の上限（算出結果の1.08倍、または他社の最大額まで）</td></tr></tbody></table>'
       + '<label class="l">最終の提示額（担当者が決定）' + NUMIN('s3.offerFinal', D.s3.offerFinal) + '</label><p class="note" style="margin:0">掛率は「掛率の設定」で変更できます。最終の提示額は、実物の確認後に査定画面へ入力してください。</p></div></section>'
       // Step 4
       + '<section class="card"><header><h2>Step 4　リスクの指摘と真贋の確認</h2></header><div class="in"><p class="lbl">コピー品の特徴（真贋の確認点）</p><div class="negs">' + pts.map(function(t, i){ return '<label><input type="checkbox" data-pt="' + i + '"' + (D.s4.points[i] ? ' checked' : '') + '> ' + esc(t) + '</label>'; }).join('') + '</div>'
@@ -977,7 +1004,7 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
       + '<label class="l">精度を上げるために必要な情報（1行に1つ）<textarea data-k="s4.missing" style="min-height:60px">' + esc(D.s4.missing || pts.filter(function(t, i){ return !D.s4.points[i]; }).join('\n')) + '</textarea></label></div></section>'
       // Step 5
       + '<section class="card"><header><h2>Step 5　接客トーク</h2></header><div class="in"><div class="row"><label class="l">為替<select data-k="s5.fx"><option>横ばい</option><option>円安</option><option>円高</option></select></label><label class="l">相場の流れ<select data-k="s5.trend"><option>横ばい</option><option>上昇</option><option>下落</option></select></label><label class="l">市場の在庫<select data-k="s5.stock"><option>ふつう</option><option>少ない</option><option>多い</option></select></label><button class="btn sub sm" type="button" id="sh-talk" style="align-self:end">文章を作り直す</button></div>'
-      + '' + (D.s5.basis ? '<p class="note" style="margin:0">市場の背景（検索の結果）：' + esc(D.s5.basis) + '</p>' : '') + '<label class="l">価格の根拠の説明（お客様へのご説明用。編集できます）<textarea data-k="s5.script" style="min-height:220px">' + esc(D.s5.script ? D.s5.script.replace(/\{提示額\}/g, c.std != null ? yen(num(D.s3.offerFinal) != null ? num(D.s3.offerFinal) : c.std) : '提示額').replace(/\{相場\}/g, c.est != null ? yen(r1000(c.est)) + '前後' : '相場') : talk(c)) + '</textarea></label><p class="note" style="margin:0">事実と異なる説明や、判断を急かす言い方は使わないでください。</p></div></section>'
+      + '' + (D.s5.basis ? '<p class="note" style="margin:0">市場の背景（検索の結果）：' + esc(D.s5.basis) + '</p>' : '') + '<label class="l">価格の根拠の説明（お客様へのご説明用。編集できます）<textarea data-k="s5.script" style="min-height:220px">' + esc(D.s5.script ? D.s5.script.replace(/\{提示額\}/g, c.std != null ? yen(num(D.s3.offerFinal) != null ? num(D.s3.offerFinal) : c.std) : '提示額').replace(/\{相場\}/g, c.est != null ? yen(rnd(c.est)) + '前後' : '相場') : talk(c)) + '</textarea></label><p class="note" style="margin:0">事実と異なる説明や、判断を急かす言い方は使わないでください。</p></div></section>'
       + '</div>';
     ['s5.fx','s5.trend','s5.stock'].forEach(function(k){ var el = document.querySelector('[data-k="' + k + '"]'); if(el) el.value = k.split('.').reduce(function(o, p){ return o[p]; }, D); });
   }
@@ -1020,10 +1047,10 @@ function sheetPdf(a, it, D, c, cat){
     + '<p class="conf">社外秘・担当者用。お客様には送らないでください。相場・算出結果は参考です。真贋と査定額は、株式会社グローブの査定担当者が実物で判断します。お客様のお名前・ご住所・連絡先は載せていません。' + (D.ai ? '<br><b>AI（Gemini）の下書きを含みます。相場・他社価格・精度のうちメモに「AI推定」とある値は、担当者が確かめるまで参考値です。</b>' : '') + '</p>'
     + '<h2>Step 1　情報の構造化と不足の確認</h2><table>' + tr('品目', esc(cat)) + tr('ブランド・メーカー', esc(D.s1.brand)) + tr('モデル名', esc(D.s1.model)) + tr('型番', esc(D.s1.ref)) + tr('製造年', esc(D.s1.year)) + tr('付属品', esc(acc) + (D.s1.accNote ? '<br>' + esc(D.s1.accNote) : '')) + tr('状態ランクの仮定', esc(D.s1.rankGuess)) + tr('定価', yen(num(D.s1.retail))) + tr('不足している情報', c.missing.map(esc).join('、') || 'なし') + '</table>'
     + '<h2>Step 2　状態ランクの判定</h2><table>' + tr('判定ランク', '<b>' + c.rank + '（' + (RANKS.filter(function(r){ return r[0] === c.rank; })[0] || ['', ''])[1] + '）</b>　仮定 ' + esc(D.s1.rankGuess) + '・懸念がある場合は低い方を採用') + tr('マイナス要因', neg.map(esc).join('、') || 'なし') + tr('メモ', esc(D.s2.note)) + '</table>'
-    + '<h2>Step 3　価格の算出</h2><table>' + tr('① 定価', '上代 ' + yen(num(D.s3.list || D.s1.retail)) + '／セール等 ' + yen(num(D.s3.saleMin)) + '〜' + yen(num(D.s3.saleMax))) + '</table><p class="sub">② 中古市場の相場</p><table>' + mk + tr('推定市場販売価格', '<b>' + yen(r1000(c.est)) + '</b>（中央値）') + '</table>'
+    + '<h2>Step 3　価格の算出</h2><table>' + tr('① 定価', '上代 ' + yen(num(D.s3.list || D.s1.retail)) + '／セール等 ' + yen(num(D.s3.saleMin)) + '〜' + yen(num(D.s3.saleMax))) + '</table><p class="sub">② 中古市場の相場</p><table>' + mk + tr('推定市場販売価格', '<b>' + yen(rnd(c.est)) + '</b>（中央値）') + '</table>'
     + '<p class="sub">③ 卸値</p><table>' + D.s3.whole.map(function(w){ return tr(esc(w.ch), yen(num(w.min)) + '〜' + yen(num(w.max))); }).join('') + tr('推奨の販売先・手法', (c.whole[0] ? esc(c.whole[0].ch) : '—') + (D.s3.method ? '／' + esc(D.s3.method) : '')) + '</table>'
     + '<p class="sub">④ 他社の買取適正価格</p><table>' + tr('7社の比較', oth || '—') + tr('最低〜最大', c.othMin != null ? yen(c.othMin) + '〜' + yen(c.othMax) : '—') + '</table>'
-    + '<p class="sub">⑤ 買取提示価格表</p><table>' + tr('計算', yen(r1000(c.est)) + ' × ' + c.rate + '（' + esc(cat) + '・' + c.rank + '）− ' + yen(c.cost) + '（修繕・クリーニング・保管・手数料）＝ ' + yen(c.base != null ? Math.round(c.base) : null)) + '</table><table class="big">' + tr('下限', yen(c.low)) + tr('標準', yen(c.std)) + tr('上限', yen(c.high)) + tr('最終の提示額', yen(num(D.s3.offerFinal))) + '</table>'
+    + '<p class="sub">⑤ 買取提示価格表</p><table>' + tr('計算', yen(rnd(c.est)) + ' × ' + c.rate + '（' + esc(cat) + '・' + c.rank + '）− ' + yen(c.cost) + '（修繕・クリーニング・保管・手数料）＝ ' + yen(c.base != null ? Math.round(c.base) : null)) + '</table><table class="big">' + tr('下限', yen(c.low)) + tr('標準', yen(c.std)) + tr('上限', yen(c.high)) + tr('最終の提示額', yen(num(D.s3.offerFinal))) + '</table>'
     + '<h2>Step 4　リスクと真贋</h2><table>' + tr('確認済みの真贋ポイント', pts.filter(function(t, i){ return D.s4.points[i]; }).map(esc).join('<br>') || 'なし') + tr('未確認の真贋ポイント', pts.filter(function(t, i){ return !D.s4.points[i]; }).map(esc).join('<br>') || 'なし') + tr('経年劣化の確認', Object.keys(D.s4.aging).filter(function(k){ return D.s4.aging[k]; }).map(esc).join('、') || '—') + tr('真贋の精度', num(D.s4.accuracy) != null ? num(D.s4.accuracy) + '%' : '—') + tr('精度を上げるための不足情報', '<pre>' + esc(D.s4.missing || '') + '</pre>') + '</table>'
     + '<h2>Step 5　接客トーク（価格の根拠の説明）</h2><table>' + tr('市場の背景', '為替：' + esc(D.s5.fx) + '／相場：' + esc(D.s5.trend) + '／在庫：' + esc(D.s5.stock)) + tr('説明文', '<pre>' + esc(D.s5.script || '') + '</pre>') + '</table></body></html>';
   var w = window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
@@ -1037,7 +1064,7 @@ async function viewRates(){ var my = S.seq;
   var cats = []; rows.forEach(function(r){ if(cats.indexOf(r.category) < 0) cats.push(r.category); });
   var get = function(c, k){ var r = rows.filter(function(x){ return x.category === c && x.rank === k; })[0]; return r ? r.rate : ''; };
   $('#main').innerHTML = top('掛率の設定', '<button class="btn sm" id="rt-save">保存する</button>')
-    + '<p class="note">鑑定シートの「⑤ 買取提示価格表」で使う掛率です（推定市場販売価格に掛ける割合）。初期値は仮の値です。実際の販売実績に合わせて調整してください。変更は操作履歴に残ります。</p>'
+    + '<p class="note">鑑定シートの「⑤ 買取提示価格表」で使う掛率です（価格の基準＝推定卸値に掛ける割合）。同じモデルの実績相場がある場合は、実績の買取額が提示額の下限になります。初期値は仮の値です。実際の販売実績に合わせて調整してください。変更は操作履歴に残ります。</p>'
     + '<div class="card"><div class="tw"><table><thead><tr><th>品目</th>' + RANKS.map(function(r){ return '<th class="r">' + r[0] + '：' + r[1] + '</th>'; }).join('') + '</tr></thead><tbody>'
     + cats.map(function(c){ return '<tr><td>' + esc(c) + '</td>' + RANKS.map(function(r){ return '<td class="r"><input class="rt" data-c="' + esc(c) + '" data-r="' + r[0] + '" value="' + esc(get(c, r[0])) + '" inputmode="decimal" style="width:70px;text-align:right"></td>'; }).join('') + '</tr>'; }).join('')
     + '</tbody></table></div></div>' + (can('appraiser') ? '' : '<p class="note bad">掛率の変更は査定担当（または管理者）が行えます。</p>');
@@ -1045,6 +1072,24 @@ async function viewRates(){ var my = S.seq;
     try{ var els = document.querySelectorAll('.rt'); for(var i = 0; i < els.length; i++){ var el = els[i], v = Number(el.value); if(isNaN(v) || v < 0 || v > 1.2) throw new Error(el.dataset.c + '・' + el.dataset.r + ' の掛率は 0〜1.2 で入力してください');
         var old = get(el.dataset.c, el.dataset.r); if(String(old) !== String(el.value) && Number(old) !== v){ await GL.update('price_rules', { category: el.dataset.c, rank: el.dataset.r }, { rate: v, updated_at: new Date().toISOString(), updated_by: GL.userId() }); n++; } }
       toast(n ? n + '件の掛率を保存しました' : '変更はありません'); viewRates(); }catch(x){ toast(x.message, true); b.disabled = false; } };
+}
+// ── 実績相場（実際の買取額・卸値。鑑定シートの価格の基準と下限に使う） ──
+async function viewRefs(){ var my = S.seq;
+  var rows = await GL.select('price_refs', { order: 'ref_date.desc,created_at.desc', limit: 2000 }); if(my !== S.seq) return;
+  var cats = ['時計','宝石・ジュエリー','ブランドバッグ・小物','貴金属','美術品・骨董','その他'];
+  $('#main').innerHTML = top('実績相場', '')
+    + '<p class="note">実際に買い取った金額と卸した金額を登録します。鑑定シートは、ブランドとモデルが同じ実績があれば、その卸値を価格の基準にし、買取額を提示額の下限にします（素材・柄とランクが同じものを優先）。実績がない品物は「実績なし・AI推定のため要確認」と表示されます。登録・変更は操作履歴に残り、削除はできません（使わない場合は「使わない」にします）。</p>'
+    + (can('appraiser') ? '<div class="card"><form class="f" id="rf-add"><div class="row"><label class="l">品目<select name="category">' + cats.map(function(c){ return '<option' + (c === 'ブランドバッグ・小物' ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label><label class="l">ブランド<input name="brand" required placeholder="例：LOUIS VUITTON"></label><label class="l">モデル<input name="model" required placeholder="例：ポルトフォイユ・サラ"></label><label class="l">素材・柄<input name="line" placeholder="例：ダミエ・エベヌ"></label></div>'
+      + '<div class="row"><label class="l">ランク<select name="rank"><option value="">—</option>' + RANKS.map(function(r){ return '<option value="' + r[0] + '"' + (r[0] === 'B' ? ' selected' : '') + '>' + r[0] + '：' + r[1] + '</option>'; }).join('') + '</select></label><label class="l">買取額（円）<input name="buy_price" required inputmode="numeric"></label><label class="l">卸値（円）<input name="wholesale" inputmode="numeric"></label><label class="l">日付<input name="ref_date" type="date" value="' + new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }) + '"></label></div>'
+      + '<label class="l">メモ（任意）<input name="note" placeholder="例：付属品なし・角スレあり"></label><div class="btns"><button class="btn sm">登録する</button></div></form></div>' : '<p class="note bad">登録は査定担当（または管理者）が行えます。</p>')
+    + '<div class="card"><div class="tw"><table><thead><tr><th>日付</th><th>ブランド・モデル</th><th>ランク</th><th class="r">買取額</th><th class="r">卸値</th><th class="r">買取÷卸</th><th>メモ</th><th></th></tr></thead><tbody>'
+    + (rows.length ? rows.map(function(r){ return '<tr' + (r.active ? '' : ' style="opacity:.45"') + '><td class="nw">' + esc(r.ref_date) + '</td><td>' + esc(r.brand) + '<br><small>' + esc(r.model) + (r.line ? '（' + esc(r.line) + '）' : '') + '・' + esc(r.category) + '</small></td><td>' + esc(r.rank || '—') + '</td><td class="r">' + yen(r.buy_price) + '</td><td class="r">' + yen(r.wholesale) + '</td><td class="r">' + (r.wholesale ? Math.round(r.buy_price / r.wholesale * 100) + '%' : '—') + '</td><td><small>' + esc(r.note || '') + '</small></td><td>' + (can('appraiser') ? '<button class="btn sub sm" type="button" data-rf="' + r.id + '" data-on="' + (r.active ? '0' : '1') + '">' + (r.active ? '使わない' : '使う') + '</button>' : (r.active ? '' : '使わない')) + '</td></tr>'; }).join('') : '<tr><td colspan="8" class="empty">まだ登録はありません</td></tr>')
+    + '</tbody></table></div></div>';
+  var f = $('#rf-add'); if(f) f.onsubmit = async function(e){ e.preventDefault(); var d = {}; new FormData(f).forEach(function(v, k){ d[k] = String(v).trim(); }); var b = f.querySelector('button');
+    try{ var bp = num(d.buy_price), wp = num(d.wholesale); if(bp == null || bp < 0) throw new Error('買取額を数字で入力してください'); if(d.wholesale && (wp == null || wp < 0)) throw new Error('卸値を数字で入力してください');
+      b.disabled = true; await GL.insert('price_refs', Object.assign({ category: d.category, brand: d.brand, model: d.model, line: d.line || null, rank: d.rank || null, buy_price: Math.round(bp), wholesale: wp != null ? Math.round(wp) : null, note: d.note || null }, d.ref_date ? { ref_date: d.ref_date } : {}));
+      toast('実績相場を登録しました'); viewRefs(); }catch(x){ toast(x.message, true); b.disabled = false; } };
+  document.querySelectorAll('[data-rf]').forEach(function(b){ b.onclick = async function(){ b.disabled = true; try{ await GL.update('price_refs', { id: b.dataset.rf }, { active: b.dataset.on === '1' }); toast('変更しました'); viewRefs(); }catch(x){ toast(x.message, true); b.disabled = false; } }; });
 }
 // ── AIによる鑑定シートの下書き（Gemini アプリで手動／自動連携） ──
 function sheetPrompt(a, cat){
