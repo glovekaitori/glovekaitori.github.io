@@ -1,0 +1,19 @@
+# 無料のSupabaseは1週間使われないと休止するため、週2回、何も読み書きしない関数を呼び出す。
+# 接続先と公開してよい鍵（サイトの config.js と同じもの）を直接書いている。秘密の値は使わない
+name: keepalive
+on:
+  schedule:
+    - cron: "17 0 * * 1,4"   # 月・木 9:17（日本時間）
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call keepalive
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/rest/v1/rpc/keepalive" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}')
+          echo "status $code"; test "$code" = "200"
+        env:
+          URL: https://mjjmtgrcusnfplftiowm.supabase.co
+          KEY: sb_publishable_AdIxvk2v71wJFbXhLJU63Q_0-AMhB6z
