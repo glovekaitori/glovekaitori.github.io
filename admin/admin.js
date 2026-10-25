@@ -44,7 +44,7 @@ function viewLogin(msg){
     + '<p class="err" id="lf-err">' + esc(msg || '') + '</p><button class="btn" type="submit">ログイン</button></form></div>';
   $('#lf').addEventListener('submit', async function(e){
     e.preventDefault(); var f = formData(e.target), err = $('#lf-err'); err.textContent = '';
-    try{ await GL.signInPassword(f.email, f.password); await afterPassword(); }catch(x){ err.textContent = x.message; }
+    try{ await GL.signInPassword(f.email, f.password); await start(); }catch(x){ err.textContent = x.message; }
   });
 }
 async function afterPassword(){
@@ -89,7 +89,7 @@ var NAV = [
   ['account','パスワード変更', function(){ return true; }]
 ];
 async function start(){
-  if(GL.aal() !== 'aal2'){ return afterPassword(); }
+  if(GL.aal() !== 'aal2'){ var needMfa = true; try{ needMfa = await GL.rpc('staff_mfa_required', {}); }catch(e){} if(needMfa) return afterPassword(); }
   var me = await GL.select('staff', { user_id: 'eq.' + GL.userId() });
   if(!me.length || !me[0].active){ root.innerHTML = '<div class="login"><div class="box"><b>G-LOVE</b><p>このアカウントは担当者として登録されていないか、停止されています。管理者にご確認ください。</p><button class="btn sub" id="o">ログアウト</button></div></div>'; $('#o').onclick = async function(){ await GL.signOut(); viewLogin(); }; return; }
   S.me = me[0]; S.staff = await safe(GL.select('staff', { order: 'name.asc' }));
@@ -1272,7 +1272,7 @@ async function viewFaq(){ var my = S.seq;
 }
 
 // ============ 起動 ============
-GL.useStore('gl-admin');
+GL.useStore('gl-admin', true); // この端末ではログインを保つ（共用の端末では、使い終わったらログアウト）
 if(!GL.configured){ root.innerHTML = '<div class="login"><div class="box"><b>G-LOVE</b><p>受付システムが未接続です。assets/config.js に接続先を設定してください。</p></div></div>'; return; }
 if(GL.session){ start().catch(function(e){ viewLogin(e.message); }); } else viewLogin();
 })();
