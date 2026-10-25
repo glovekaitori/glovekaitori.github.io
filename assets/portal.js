@@ -83,6 +83,7 @@ function expired(ap){ return ap && ap.expiresAt && new Date(ap.expiresAt) < new 
 function canDocs(c){ return c.actor === 'seller' || (c.mandateActive && c.scope && (c.scope.documents || c.scope.sign || c.scope.approve)); }
 function unsignedSale(c){ var mine = c.actor === 'seller' ? 'seller' : 'agent'; return (c.contracts || []).filter(function(k){ return k.kind === 'sale' && k.status === 'pending' && !k.signatures.some(function(s){ return s.kind === 'seller' || s.kind === 'agent'; }); })[0]; }
 function pendingMandate(c){ return c.actor === 'seller' && (c.mandates || []).some(function(m){ return !m.signedAt && !m.revokedAt; }); }
+function idDoneFor(id){ var c = cases.filter(function(x){ return x.id === id; })[0]; return !c || !c.identity || c.identity.done; }
 function tasks(c){
   var T = [], st = c.status, idc = c.identity || {}, pr = c.pickupRequest, pk = c.pickup;
   var mm = c.myMandates || [], live = mm.filter(function(m){ return !m.revokedAt && (!m.validUntil || new Date(m.validUntil) > new Date()); });
@@ -93,12 +94,12 @@ function tasks(c){
   if(c.actor === 'agent' && pendingM) T.push({ key:'wait', title:'ご本人の署名をお待ちください', desc:'ご本人に「委任状のご確認」のメールを送りました。届いていない場合は、受付番号 ' + c.receiptNo + ' をお伝えのうえ、お客様用画面の「契約・書類」から署名いただくようご案内ください。' });
   if(c.actor === 'agent' && live.length && !pendingM && !c.mandateActive && (idc.agentRequested || idc.agentDone)) T.push({ key:'wait', title:'委任が有効になるのをお待ちください', desc:'売主ご本人の委任状への署名と、代理の方の本人確認が済むと、お手続きを進められます。' });
   if(pendingMandate(c)) T.push({ key:'link', title:'委任状に署名する', desc:'代理の方に任せる範囲をご確認のうえ、ご本人が署名してください。', href:'documents' });
-  if(c.actor === 'seller' && !idc.done && !idc.requested && EARLY.concat(['goods_received','appraising']).indexOf(st) >= 0) T.push({ key:'identity', title:'ご本人確認の情報を送る', desc:'古物営業法により、買取の前にご本人確認が必要です。お名前・ご住所などと、身分証明書の画像（表・裏）をお送りください。' });
+  if(c.actor === 'seller' && !idc.done && !idc.requested && EARLY.concat(['goods_received','appraising','appraisal_notified','approved','partially_approved']).indexOf(st) >= 0) T.push({ key:'identity', title:'ご本人確認の情報を送る', desc:'古物営業法により、買取の前にご本人確認が必要です。お名前・ご住所などと、身分証明書の画像（表・裏）をお送りください。' });
   if(canPickup(c) && !pr && !pk && EARLY.indexOf(st) >= 0) T.push({ key:'pickup', title:'集荷の方法と日時を選ぶ', desc:'梱包キットのお届け、ご自身での発送、直接集荷のご相談からお選びください。' });
   if(canPickup(c) && pr && (pr.method === 'kit' || pr.method === 'self_ship') && !pr.trackingNo && !(pk && pk.receivedAt)) T.push({ key:'tracking', title:'発送したら伝票番号を入力する', desc: pr.method === 'kit' ? '梱包キットが届いたら、お品物を入れて発送し、伝票番号をお知らせください。' : 'お品物を発送したら、伝票番号をお知らせください。到着を確認しやすくなります。' });
   if(c.appraisal && c.appraisal.status === 'notified' && !expired(c.appraisal)) T.push({ key:'link', title:'査定結果を確認して回答する', desc:'お品物ごとに「売る」か「返却」を選び、そのまま契約まで進めます。回答期限は ' + dt(c.appraisal.expiresAt) + ' です。', href:'result' });
-  if(canBank(c) && ['approved','partially_approved','contracted'].indexOf(st) >= 0 && !(c.bank || []).length) T.push({ key:'bank', title:'振込先の口座を登録する', desc:'原則として売主ご本人（法人の場合は法人）名義の口座です。' });
   if(unsignedSale(c) && (c.actor === 'seller' || (c.mandateActive && c.scope && c.scope.sign))) T.push({ key:'link', title:'売買契約書に署名する', desc:'内容をご確認のうえ、電子署名してください。署名後にお振込みします。', href:'documents' });
+  if(canBank(c) && ['approved','partially_approved','contracted'].indexOf(st) >= 0 && !(c.bank || []).length) T.push({ key:'bank', title:'振込先の口座を登録する', desc:'原則として売主ご本人（法人の場合は法人）名義の口座です。' });
   if(canDocs(c) && (c.hasDeclined || st === 'return_scheduled' || st === 'declined') && !c.returnRequested) T.push({ key:'return', title:'返却先を確認する', desc:'お売りにならなかったお品物を、送料無料でお返しします。' });
   if(!T.length) T.push({ key:'info', title: waitText(c), desc:'担当者が進めています。ご質問は下の「担当者への連絡」からどうぞ。' });
   return T;
@@ -192,14 +193,17 @@ function msgBox(c){
 async function prefill(){
   var arts = document.querySelectorAll('[data-case]');
   for(var i = 0; i < arts.length; i++){
-    var art = arts[i]; if(!art.querySelector('form[data-do=identity],form[data-do=pickup],form[data-do=bank]')) continue;
+    var art = arts[i]; if(!art.querySelector('form[data-do=identity],form[data-do=pickup],form[data-do=bank],form[data-do=return]')) continue;
     var d = null; try{ d = await GL.rpc('portal_prefill', { p_app: art.dataset.case }); }catch(e){ continue; } if(!d) continue;
     var put = function(sel, v){ var el = art.querySelector(sel); if(el && !el.value && v) el.value = v; };
     put('form[data-do=identity] [name=fullName]', d.fullName); put('form[data-do=identity] [name=kana]', d.kana); put('form[data-do=identity] [name=birthdate]', d.birthdate);
     put('form[data-do=identity] [name=occupation]', d.occupation); put('form[data-do=identity] [name=address]', d.address); put('form[data-do=identity] [name=tel]', d.tel);
     var pa = art.querySelector('form[data-do=pickup] [name=address]'); if(pa && d.address && (!pa.value || d.address.indexOf(pa.value) === 0)) pa.value = d.address;
     put('form[data-do=pickup] [name=recipient]', d.fullName); put('form[data-do=pickup] [name=tel]', d.tel);
-    put('form[data-do=bank] [name=holderName]', d.kana);
+    if(!d.company) put('form[data-do=bank] [name=holderName]', d.kana);
+    if(d.company) put('form[data-do=identity] [name=occupation]', '会社員（' + d.company + '）');
+    var ra = art.querySelector('form[data-do=return] [name=address]'); if(ra && d.address && (!ra.value || d.address.indexOf(ra.value) === 0)) ra.value = d.address;
+    put('form[data-do=return] [name=recipient]', d.fullName); put('form[data-do=return] [name=tel]', d.tel);
   }
 }
 function vStatus(){
@@ -305,7 +309,7 @@ function vResult(){
     var ap = c.appraisal, open = ap.status === 'notified', allowed = c.actor === 'seller' || (c.mandateActive && c.scope && c.scope.approve), exp = open && expired(ap), canAns = open && allowed && !exp;
     var total = ap.lines.reduce(function(s, l){ return s + l.amount; }, 0);
     var sale = (c.contracts || []).filter(function(k){ return k.kind === 'sale'; }).pop();
-    var out = '<article class="pcase" data-ap="' + ap.id + '">' + head(c);
+    var out = '<article class="pcase" data-ap="' + ap.id + '" data-case="' + c.id + '">' + head(c);
     if(sale && sale.status === 'signed') out += '<div class="pdone"><p class="pdone-t">売買契約が成立しました</p><p>成立日時 ' + dt(sale.signedAt) + '。契約書の控えは「契約・書類」でいつでも確認・保存できます。' + (c.bank && c.bank.length ? 'お振込みの準備ができしだい、お知らせします。' : '<b>続けて、振込先の口座をご登録ください。</b>') + '</p><div class="btns">' + (c.bank && c.bank.length ? '' : '<a class="btn" href="' + PRE + 'status/#c-' + c.id.slice(0, 8) + '">振込先を登録する</a>') + '<a class="btn ghost" href="' + PRE + 'documents/">契約書を見る</a></div></div>';
     out += '<p class="note">査定日 ' + dt(ap.notifiedAt) + (open ? '　お品物ごとに「売る」か「返却」をお選びください。ご回答がない場合に、売却したものとして扱うことはありません。' : '') + '</p>'
       + '<div class="tbl-wrap"><table class="tbl presult"><thead><tr><th>お品物</th><th class="r">数量</th><th class="r">査定額</th><th>ご回答</th></tr></thead><tbody>'
@@ -366,7 +370,7 @@ function vResult(){
     if(t.hasAttribute('data-cancel')){ pc.hidden = true; pc.innerHTML = ''; art.querySelector('[data-check]').hidden = false; return; }
     if(t.hasAttribute('data-send')){
       t.disabled = true;
-      try{ var r = await GL.rpc('portal_respond', { p_appraisal: apId, p_decisions: picks().d }); await load(); msg(r === 'declined' ? 'ご回答を承りました。お品物は送料無料でご返却します。' : 'ご回答を承りました。売買契約書をご用意しますので、「契約・書類」からご署名ください。'); }
+      try{ var r = await GL.rpc('portal_respond', { p_appraisal: apId, p_decisions: picks().d }); await load(); msg(r === 'declined' ? 'ご回答を承りました。お品物は送料無料でご返却します。' : !idDoneFor(art.dataset.case) ? 'ご回答を承りました。ご本人確認が済みしだい、売買契約書をご用意します（ご本人確認の情報がまだの場合は「お手続き」からお送りください）。' : 'ご回答を承りました。売買契約書をご用意しますので、「契約・書類」からご署名ください。'); }
       catch(x){ msg(x.message, true); t.disabled = false; }
     }
     if(t.hasAttribute('data-close')){
