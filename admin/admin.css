@@ -157,3 +157,9 @@ table.calc{margin-top:6px}table.calc tr.tot td,table.calc tr.tot th{font-weight:
 .ai-box .row .btn{width:auto}
 table.mk tr.ex td{opacity:.55}
 a.src{display:block;font-size:11px;color:var(--gold);margin-top:2px}
+/* 案件の「次にやること」 */
+.todo{border:1px solid var(--gold,#c8ae7d);background:rgba(200,174,125,.08);border-radius:6px;padding:12px 16px;margin:0 0 16px}
+.todo b{color:var(--gold-hi,#e6d3a8)}
+.todo ol{margin:6px 0 0;padding-left:20px}
+.todo li{margin:4px 0;line-height:1.6}
+.todo.done{border-color:var(--line,#333);background:transparent}
