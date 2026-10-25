@@ -47,7 +47,7 @@
 <div class="field" style="margin-top:20px"><label for="relation">売主様とのご関係<span class="opt">任意</span></label><input type="text" id="relation" name="relation" placeholder="例：担当マネージャー"></div>
 </div>
 </fieldset>
-<fieldset class="fs-block" data-step="2" data-title="ご連絡先"><legend>ご連絡先</legend><p class="step-hint">メールアドレスは必須です。受付番号のお知らせと、お手続き画面へのログインに使います。お電話でのご連絡をご希望の方は、電話番号も入力してください。</p>
+<fieldset class="fs-block" data-step="2" data-title="ご連絡先"><legend>ご連絡先</legend><p class="step-hint">メールアドレスは必須です。受付番号のお知らせと、お手続き画面へのログイン（メールのボタンを押すだけ）に使います。お電話でのご連絡をご希望の方は、電話番号も入力してください。</p>
 <div class="field"><label for="email">メールアドレス<span class="req">必須</span></label><input type="email" id="email" name="email" autocomplete="email" aria-describedby="err-email"><p class="hint">G-LOVEからのメールには、お名前・お品物・金額は書きません。</p><p class="err" id="err-email"></p></div>
 <div class="field"><label for="tel">電話番号<span class="opt">任意</span></label><input type="tel" id="tel" name="tel" autocomplete="tel" inputmode="tel" aria-describedby="err-tel"><p class="err" id="err-tel"></p></div>
 <div class="field"><span class="lbl" id="lbl-contactWay">ご希望の連絡方法<span class="req">必須</span></span><div class="choices" role="radiogroup" aria-labelledby="lbl-contactWay" aria-describedby="err-contactWay"><label><input type="radio" name="contactWay" value="電話">電話</label><label><input type="radio" name="contactWay" value="メール">メール</label><label><input type="radio" name="contactWay" value="ショートメッセージ">ショートメッセージ</label></div><p class="err" id="err-contactWay"></p></div>
@@ -84,7 +84,7 @@
 <div class="tbl-wrap" style="max-width:46em"><table class="tbl confirm-tbl"><tbody id="confirmBody"></tbody></table></div>
 <div class="btns" style="margin-top:28px"><button class="btn ghost" type="button" id="backBtn">入力に戻る</button><button class="btn" type="button" id="sendBtn">この内容で申し込む</button></div>
 </div>
-<div id="view-done" hidden><div class="success" style="max-width:46em"><h2>お申込みを受け付けました</h2><p>受付番号</p><p class="no" id="receiptNo"></p><p id="photoNote"></p><p>ご入力のメールアドレスに「お申込みを受け付けました」のメールをお送りしました。届かない場合は、迷惑メールのフォルダもご確認ください。</p><p>担当者より、ご希望の方法でご連絡します。受付番号は「お手続き」へのログインに使います。控えておいてください。</p><div class="btns"><a class="btn" id="toPortal" href="../status/">お手続きへ進む</a></div></div></div>
+<div id="view-done" hidden><div class="success" style="max-width:46em"><h2>お申込みを受け付けました</h2><p>受付番号</p><p class="no" id="receiptNo"></p><p id="photoNote"></p><p>ご入力のメールアドレスに「お申込みを受け付けました」のメールをお送りしました。届かない場合は、迷惑メールのフォルダもご確認ください。</p><p>担当者より、ご希望の方法でご連絡します。お手続きの画面は、お申込みのメールアドレスだけでログインできます（受付番号の入力は不要です）。</p><div class="btns"><a class="btn" id="toPortal" href="../status/">お手続きへ進む</a></div></div></div>
 <div id="view-fail" hidden><div class="alert" style="max-width:46em" role="alert"><h2>お申込みは送信されていません</h2><p id="failReason"></p><p>入力内容はこの画面にだけ残っています。画面を閉じると消えます。</p><div class="btns"><button class="btn ghost" type="button" id="retryBtn">確認画面に戻る</button></div></div></div>
 </div></section>
 </main>
