@@ -94,6 +94,7 @@ async function start(){
   try{ S.solo = !!((await GL.rpc('staff_settings', {})) || {}).solo_approval; }catch(e){ S.solo = false; }
   if(!me.length || !me[0].active){ root.innerHTML = '<div class="login"><div class="box"><b>G-LOVE</b><p>このアカウントは担当者として登録されていないか、停止されています。管理者にご確認ください。</p><button class="btn sub" id="o">ログアウト</button></div></div>'; $('#o').onclick = async function(){ await GL.signOut(); viewLogin(); }; return; }
   S.me = me[0]; S.staff = await safe(GL.select('staff', { order: 'name.asc' }));
+  S.names = await safe(GL.select('staff_names', { order: 'sort.asc,name.asc' }));
   root.innerHTML = '<div class="app"><aside class="side" id="side"><div class="brand"><b>G-LOVE</b><small>管理画面</small></div><nav id="nav"></nav>'
     + '<div class="me"><span>' + esc(S.me.name) + '（' + esc(ROLE[S.me.role]) + '・' + esc(COMPANY[S.me.company]) + '）</span><button class="btn sub sm" id="logout">ログアウト</button></div></aside>'
     + '<main class="main" id="main"></main></div>';
@@ -151,7 +152,7 @@ async function viewCases(){ var my = S.seq;
       return true;
     });
     $('#tb').innerHTML = rows.length ? rows.map(function(a){ var c = cm[a.customer_id] || {};
-      return '<tr class="click" data-id="' + a.id + '" tabindex="0"><td class="mono">' + esc(a.receipt_no) + (a.trial ? ' <span class="pill warn">試験</span>' : '') + (lastMsg[a.id] && lastMsg[a.id] !== 'staff' ? ' <span class="pill bad">要返信</span>' : '') + (reqs[a.id] && ['received','contacting','identity_pending','pickup_arranging'].indexOf(a.status) >= 0 ? ' <span class="pill gold">申告あり</span>' : '') + '</td><td>' + dt(a.created_at) + '</td><td>' + esc(a.applicant_name) + (a.agent_org ? '<br><small style="color:var(--mute)">' + esc(a.agent_org) + '</small>' : '') + '</td><td>' + esc(APPLICANT[a.applicant_role]) + '</td><td>' + esc(c.verified_name || c.name || '—') + '</td><td>' + esc((a.categories || []).join('、')) + '</td><td>' + esc(a.pref) + '</td><td>' + pill(STATUS, a.status) + '</td><td>' + esc(sm[a.assigned_to] || '—') + '</td></tr>'; }).join('')
+      return '<tr class="click" data-id="' + a.id + '" tabindex="0"><td class="mono">' + esc(a.receipt_no) + (a.trial ? ' <span class="pill warn">試験</span>' : '') + (lastMsg[a.id] && lastMsg[a.id] !== 'staff' ? ' <span class="pill bad">要返信</span>' : '') + (reqs[a.id] && ['received','contacting','identity_pending','pickup_arranging'].indexOf(a.status) >= 0 ? ' <span class="pill gold">申告あり</span>' : '') + '</td><td>' + dt(a.created_at) + '</td><td>' + esc(a.applicant_name) + (a.agent_org ? '<br><small style="color:var(--mute)">' + esc(a.agent_org) + '</small>' : '') + '</td><td>' + esc(APPLICANT[a.applicant_role]) + '</td><td>' + esc(c.verified_name || c.name || '—') + '</td><td>' + esc((a.categories || []).join('、')) + '</td><td>' + esc(a.pref) + '</td><td>' + pill(STATUS, a.status) + '</td><td>' + esc(handlersText(a) || sm[a.assigned_to] || '—') + '</td></tr>'; }).join('')
       : '<tr><td colspan="9" class="empty">該当する案件はありません</td></tr>';
   }
   ['q','st','open'].forEach(function(i){ $('#' + i).addEventListener('input', draw); });
@@ -228,7 +229,7 @@ function nextTodo(){
   if(gotIt && C.items.length && (!ap || ap.status === 'draft')){
     var have = ap ? C.lines.filter(function(l){ return l.appraisal_id === ap.id; }).length : 0;
     T.push(have < C.items.length ? '査定：各商品の「鑑定シート」で金額を確かめ、「この金額を査定に入れる」（' + have + '/' + C.items.length + '点）' + go('s-items') : '査定：金額がそろいました。「お客様に通知」を押す' + go('s-items')
-      + (S.me && S.me.company !== 'glove' ? '<br><span class="pill warn">注意</span> あなたは株式会社グローブの担当者ではないため、通知しても買主（グローブ）の申込みにならず、お客様は画面で契約できません。グローブの担当者が通知してください' : ''));
+      + (!(S.names || []).some(function(n){ return n.active && n.can_contract; }) ? '<br><span class="pill warn">注意</span> 「グローブとして契約できる人」が名簿にいないため、通知してもお客様は画面で契約できません（「担当者」の画面でチェックしてください）' : ''));
   }
   if(ap && ap.status === 'notified') T.push('査定：お客様の回答待ちです（7日目に自動で再通知、14日で返却のご案内）');
   var sale = C.contracts.filter(function(k){ return k.kind === 'sale'; })[0];
@@ -242,6 +243,13 @@ function nextTodo(){
   if(sellerOk === false && sale) T.unshift('注意：本人確認が済んでいません');
   return '<div class="todo"><b>次にやること</b>' + (T.length ? '<ol>' + T.map(function(x){ return '<li>' + x + '</li>'; }).join('') + '</ol>' : '<p style="margin:4px 0 0">いまは、お客様の操作を待っています。</p>') + '</div>';
 }
+function offerOptions(){
+  var ok = (S.names || []).filter(function(n){ return n.active && n.can_contract; }), mine = ok.filter(function(n){ return (C.app.handler_ids || []).indexOf(n.id) >= 0; })[0];
+  if(!ok.length) return '<option value="">（グローブとして契約できる人がいません）</option>';
+  return ok.map(function(n){ return '<option value="' + n.id + '"' + (mine && mine.id === n.id ? ' selected' : '') + '>' + esc(n.name) + '</option>'; }).join('');
+}
+function nameOf(id){ var n = (S.names || []).filter(function(x){ return x.id === id; })[0]; return n ? n.name : ''; }
+function handlersText(a){ return (a.handler_ids || []).map(nameOf).filter(Boolean).join('・'); }
 function card(id, title, hint, body){ return '<section class="card" id="' + id + '"><header><h2>' + title + '</h2>' + (hint ? '<span class="hint">' + hint + '</span>' : '') + '</header><div class="in">' + body + '</div></section>'; }
 
 async function viewCase(id){ var my = S.seq;
@@ -260,7 +268,7 @@ async function viewCase(id){ var my = S.seq;
     + '<dt>ご要望</dt><dd>' + esc(a.note || '—') + '</dd></dl>'
     + (can('reception','appraiser') ? '<form class="f" data-form="status"><div class="row"><label class="l">状態<select name="status">' + MANUAL.map(function(k){ return '<option value="' + k + '"' + (a.status === k ? ' selected' : '') + '>' + STATUS[k][0] + '</option>'; }).join('')
       + (MANUAL.indexOf(a.status) < 0 ? '<option value="' + a.status + '" selected>' + STATUS[a.status][0] + '（自動）</option>' : '') + '</select></label>'
-      + '<label class="l">担当者<select name="assigned_to"><option value="">未割当</option>' + S.staff.filter(function(s){ return s.active; }).map(function(s){ return '<option value="' + s.user_id + '"' + (a.assigned_to === s.user_id ? ' selected' : '') + '>' + esc(s.name) + '</option>'; }).join('') + '</select></label></div>'
+      + '</div><div class="l">担当者（チェックで選ぶ・複数可）<div class="hchk">' + (S.names || []).filter(function(n){ return n.active || (a.handler_ids || []).indexOf(n.id) >= 0; }).map(function(n){ return '<label><input type="checkbox" name="h_' + n.id + '"' + ((a.handler_ids || []).indexOf(n.id) >= 0 ? ' checked' : '') + '> ' + esc(n.name) + (n.can_contract ? '<small title="グローブとして契約できる人">★</small>' : '') + '</label>'; }).join('') + '</div></div>'
       + '<div class="btns"><button class="btn sm">更新する</button><span class="hint" style="color:var(--mute);font-size:12px">承認・契約成立・振込済は、お客様の操作や記録に応じて自動で変わります</span></div></form>' : ''));
   // お客様からの申告と連絡
   html += card('s-req', 'お客様からの申告・連絡', needsAction(C) ? '<span class="pill warn">要対応</span>' : '', renderRequests());
@@ -375,7 +383,7 @@ function renderItems(){
         + (draft && can('appraiser') ? '<input name="amt_' + i.id + '" type="number" min="0" step="1" value="' + (l ? l.amount : '') + '" style="width:130px;text-align:right" aria-label="' + esc(i.description) + 'の査定額">' : (l ? yen(l.amount) : '—'))
         + '</td><td>' + (v ? (v.decision === 'approve' ? '<span class="pill ok">承認</span>' : '<span class="pill bad">辞退</span>') + '<br><small>' + (v.responder_kind === 'agent' ? '代理人' : '売主') + ' ' + dt(v.responded_at) + '</small>' : '—') + '</td></tr>'; }).join('')
       + (ap ? '<tr><td colspan="3" class="r">合計</td><td class="r num">' + yen(C.lines.filter(function(l){ return l.appraisal_id === ap.id; }).reduce(function(s, l){ return s + l.amount; }, 0)) + '</td><td>承認分 ' + yen(approvedLines(ap).reduce(function(s, l){ return s + l.amount; }, 0)) + '</td></tr>' : '') + '</tbody></table></div>'
-      + (draft && can('appraiser') ? '<div class="btns" style="margin-top:8px"><button class="btn sub sm">査定額を保存</button><button class="btn sm" type="button" data-act="notify">お客様へ査定結果を通知</button></div>' : '') + '</form>';
+      + (draft && can('appraiser') ? '<div class="btns" style="margin-top:8px"><button class="btn sub sm">査定額を保存</button><label style="font-size:13px">グローブとして申込みをする担当者 <select id="offer-name">' + offerOptions() + '</select></label><button class="btn sm" type="button" data-act="notify">お客様へ査定結果を通知</button></div>' : '') + '</form>';
   } else out += '<p class="empty">商品はまだ登録されていません。受領後に登録してください。</p>';
   if(can('appraiser')){
     out += '<details><summary style="cursor:pointer;color:var(--gold-hi)">商品を登録する</summary><form class="f" data-form="item" style="margin-top:10px"><div class="row"><label class="l">種類<select name="category"><option>時計</option><option>宝石・ジュエリー</option><option>ブランドバッグ・小物</option><option>貴金属</option><option>美術品・骨董</option><option>その他</option></select></label><label class="l">品名<input name="description" required></label><label class="l">数量<input name="quantity" type="number" min="1" value="1"></label></div><label class="l">特徴（古物台帳に記載：型番・刻印・色・素材など）<input name="features"></label><label class="l">状態<input name="condition_note"></label><div class="btns"><button class="btn sm">登録する</button></div></form></details>';
@@ -456,7 +464,7 @@ function askFirst(b, text){
 }
 var ASK = { nda: '定型の秘密保持契約書を作成し、当社（株式会社グローブ・株式会社マネージメントアドバイザーズ）としてあなたの名前で署名します。お客様へ署名のお願いが届きます。', notify: 'お客様へ査定結果を通知します。通知後は金額を変更できません。株式会社グローブの担当者が通知すると、買主の申込みとして記録され、お客様はお手続き画面のチェックと電子署名だけで売買契約まで完了できます。', buyersign: '株式会社グローブを代表して売買契約に署名します。', paid: '銀行での振込を実行したことを記録します。お客様へ振込完了を通知します。', agentok: '代理人の本人確認が記録済みであることを確認しました。', newap: '新しい版の査定を作成します。通知済みの査定は取り下げになります。' };
 var FORMS = {
-  status: function(d){ return GL.update('applications', { id: C.app.id }, { status: d.status, assigned_to: d.assigned_to || null }); },
+  status: function(d){ var h = Object.keys(d).filter(function(k){ return /^h_/.test(k) && d[k] === true; }).map(function(k){ return k.slice(2); }); return GL.update('applications', { id: C.app.id }, { status: d.status, handler_ids: h }); },
   cust: function(d){ return GL.update('customers', { id: C.cust.id }, { kind: d.kind, name: d.name, email: (d.email || '').toLowerCase() || null, tel: d.tel || null, verified_name: d.verified_name || null, verified_kana: d.verified_kana || null }); },
   reply: function(d){ return GL.insert('messages', { application_id: C.app.id, sender: GL.userId(), sender_kind: 'staff', body: d.body }); },
   note: function(d){ return GL.insert('application_notes', { application_id: C.app.id, body: d.body, author: GL.userId() }); },
@@ -478,7 +486,7 @@ var FORMS = {
   return: async function(d){ await GL.insert('returns', { application_id: C.app.id, reason: d.reason, carrier: d.carrier || null, tracking_no: d.tracking_no || null }); }
 };
 var ACTS = {
-  notify: async function(){ var ap = latestAppraisal(); if(C.lines.filter(function(l){ return l.appraisal_id === ap.id; }).length < C.items.length){ var f = $('form[data-form=lines]'); await FORMS.lines(formData(f)); } await GL.rpc('staff_notify_appraisal', { p_appraisal: ap.id }); return '査定結果を通知しました'; },
+  notify: async function(){ var ap = latestAppraisal(); if(C.lines.filter(function(l){ return l.appraisal_id === ap.id; }).length < C.items.length){ var f = $('form[data-form=lines]'); await FORMS.lines(formData(f)); } var on = $('#offer-name') ? $('#offer-name').value : ''; await GL.rpc('staff_notify_appraisal', { p_appraisal: ap.id, p_offer_name: on || null }); return '査定結果を通知しました' + (on ? '（' + nameOf(on) + 'さんがグローブとして申込み）' : ''); },
   newap: async function(){ var v = C.appraisals.reduce(function(m, x){ return Math.max(m, x.version); }, 0) + 1; await GL.insert('appraisals', { application_id: C.app.id, version: v }); if(['received','contacting','identity_pending','pickup_arranging','in_transit','goods_received'].indexOf(C.app.status) >= 0) await GL.update('applications', { id: C.app.id }, { status: 'appraising' }); return '査定の下書きを作成しました'; },
   aiitem: async function(slot){
     var x = (C.autoSheets || []).filter(function(s){ return String(s.slot) === String(slot); })[0]; if(!x) throw new Error('自動鑑定の結果が見つかりません');
@@ -572,6 +580,13 @@ async function viewStaff(){ var my = S.seq;
   if(my !== S.seq) return; $('#main').innerHTML = top('担当者') + '<div class="card"><header><h2>担当者を登録する</h2><span class="hint">先にSupabaseの管理画面からメールで招待してください</span></header><div class="in"><form class="f" id="sf"><div class="row"><label class="l">メールアドレス<input name="email" type="email" required></label><label class="l">氏名<input name="name" required></label><label class="l">所属<select name="company"><option value="management_advisers">マネージメントアドバイザーズ</option><option value="glove">グローブ</option></select></label><label class="l">役割<select name="role">' + Object.keys(ROLE).map(function(k){ return '<option value="' + k + '">' + ROLE[k] + '</option>'; }).join('') + '</select></label></div><div class="btns"><button class="btn sm">登録する</button></div></form></div></div>'
     + '<div class="card"><div class="tw"><table><thead><tr><th>氏名</th><th>所属</th><th>役割</th><th>状態</th><th></th></tr></thead><tbody>' + S.staff.map(function(s){ return '<tr><td>' + esc(s.name) + '</td><td>' + esc(COMPANY[s.company]) + '</td><td><select data-role="' + s.user_id + '" aria-label="役割">' + Object.keys(ROLE).map(function(k){ return '<option value="' + k + '"' + (s.role === k ? ' selected' : '') + '>' + ROLE[k] + '</option>'; }).join('') + '</select></td><td>' + (s.active ? '<span class="pill ok">有効</span>' : '<span class="pill bad">停止</span>') + '</td><td>' + (s.user_id !== GL.userId() ? '<button class="btn sub sm" data-act="' + s.user_id + '" data-on="' + (!s.active) + '">' + (s.active ? '停止する' : '再開する') + '</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div></div>'
     + '<div class="note">役割ごとに見られる情報：受付＝案件・問い合わせ・写真／査定＝案件・本人確認・査定・契約／経理＝振込・口座・本人確認／営業＝紹介コードのみ／管理者＝すべてと操作履歴</div>';
+  S.names = await safe(GL.select('staff_names', { order: 'sort.asc,name.asc' }));
+  if(my === S.seq) ($('#main .card') || $('#main')).insertAdjacentHTML($('#main .card') ? 'beforebegin' : 'beforeend', '<div class="card"><header><h2>担当者の名簿</h2><span class="hint">ログインは共通のまま、案件ごとの担当者をチェックで選べます。切り替えは管理者が行い、操作履歴に残ります</span></header><div class="in"><div class="tw"><table><thead><tr><th>名前</th><th>使う</th><th>グローブとして契約できる</th></tr></thead><tbody>'
+    + S.names.map(function(n){ return '<tr><td>' + esc(n.name) + '</td><td><input type="checkbox" data-nm="' + n.id + '" data-f="active"' + (n.active ? ' checked' : '') + (can() ? '' : ' disabled') + '></td><td><input type="checkbox" data-nm="' + n.id + '" data-f="can_contract"' + (n.can_contract ? ' checked' : '') + (can() ? '' : ' disabled') + '></td></tr>'; }).join('')
+    + '</tbody></table></div>' + (can() ? '<form class="btns" id="nm-add" style="margin-top:8px"><input name="name" placeholder="名前を追加（例：鈴木）" style="width:200px"><button class="btn sm">追加する</button></form>' : '')
+    + '<p class="note" style="margin:6px 0 0">「グローブとして契約できる」にチェックした人を、査定の通知のときに選ぶと、買主（株式会社グローブ）の申込みとして記録され、お客様は画面で契約まで進めます。</p></div></div>');
+  document.querySelectorAll('[data-nm]').forEach(function(x){ x.onchange = async function(){ var o = {}; o[x.dataset.f] = x.checked; try{ await GL.update('staff_names', { id: x.dataset.nm }, o); toast('変更しました'); }catch(e){ x.checked = !x.checked; toast(e.message, true); } }; });
+  var na = $('#nm-add'); if(na) na.onsubmit = async function(e){ e.preventDefault(); var v = na.querySelector('input[name=name]').value.trim(); if(!v) return; try{ await GL.insert('staff_names', { name: v, sort: 100 + S.names.length * 10 }); toast('追加しました'); viewStaff(); }catch(x){ toast(/duplicate|unique/.test(x.message) ? 'その名前はすでにあります' : x.message, true); } };
   var cfg = null; try{ cfg = await GL.rpc('staff_settings', {}); }catch(e){}
   if(cfg && my === S.seq) $('#main').insertAdjacentHTML('beforeend', '<div class="card"><header><h2>運用の設定</h2><span class="hint">管理者だけが変更できます。変更は操作履歴に残ります</span></header><div class="in">'
     + '<label style="display:block;margin:6px 0"><input type="checkbox" data-cfg="solo_approval"' + (cfg.solo_approval ? ' checked' : '') + '> <b>一人で運用する</b>（振込の作成と承認を同じ担当者が行えるようにする。名義が一致しない場合の確認内容の記録は引き続き必須）</label>'
