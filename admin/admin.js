@@ -211,37 +211,75 @@ function autoBox(){
 // 案件ごとの「次にやること」（上から順に、いまやるべきこと）
 function nextTodo(){
   var a = C.app, T = [], go = function(sec){ return ' <a href="javascript:void(0)" data-jump="' + sec + '">該当の欄へ</a>'; };
-  if(['cancelled','closed','returned','paid'].indexOf(a.status) >= 0) return '<div class="todo done"><b>この案件で、いまやることはありません</b>（' + esc((STATUS[a.status] || [a.status])[0]) + '）</div>';
+  if(['cancelled','closed','returned','paid'].indexOf(a.status) >= 0 && !needReturn()) return '<div class="todo done"><b>この案件で、いまやることはありません</b>（' + esc((STATUS[a.status] || [a.status])[0]) + '）</div>';
+  // 代理（委任）
+  var ms = C.mandates.filter(function(m){ return !m.revoked_at; });
+  if(a.applicant_role === 'agent' && !ms.length) T.push('委任：代理の方の委任状の作成を待っています（お客様の画面から作成できます。こちらで作ることもできます）' + go('s-mandate'));
+  ms.forEach(function(m){
+    if(!m.seller_signed_at) T.push('委任：売主ご本人の委任状への署名を待っています（代理人 ' + esc(m.agent_name || '') + '）' + go('s-mandate'));
+    else if(!m.agent_identity_checked){
+      var ar = C.idr.filter(function(r){ return r.subject === 'agent'; })[0];
+      T.push(ar ? '委任：代理人の本人確認（身分証の画像と照合 →「書留の宛名を印刷」→ 転送不要の簡易書留 → 届いたら対象「代理人」で記録）。記録すると委任が有効になります' + go('s-req') : '委任：代理人の本人確認の申告を待っています');
+    }
+    if(m.seller_contact_by_agent && !m.seller_confirmed_at) T.push('委任：売主の連絡先は代理人が入力したものです。代理人を通さない方法で売主ご本人に委任の意思を確認し、「売主本人に確認した」を記録' + go('s-mandate'));
+  });
+  // 本人確認（売主）
   var sellerReq = C.idr.filter(function(r){ return r.subject === 'seller'; })[0], sellerOk = C.idc.some(function(x){ return x.subject === 'seller' || x.subject === 'corporate_staff'; });
   if(!sellerOk){
     if(sellerReq) T.push('本人確認：身分証の画像と申告を照らし合わせ、「書留の宛名を印刷」→ 転送不要の簡易書留を送る。届いたら番号と到達日を記録' + go('s-req'));
-    else T.push('本人確認：お客様の申告（身分証の画像）を待っています。お手続き画面から送っていただくようご案内ください');
+    else T.push('本人確認：' + (a.applicant_role === 'agent' ? '売主ご本人' : 'お客様') + 'の申告（身分証の画像）を待っています。お手続き画面から送っていただくようご案内ください');
   }
+  // 秘密保持契約
+  if(C.events.some(function(e){ return e.kind === 'nda_requested'; }) && !C.contracts.some(function(k){ return k.kind === 'nda' && k.status !== 'void'; }))
+    T.push('秘密保持：お客様が秘密保持契約を希望しています。「秘密保持契約を作成してお客様へ送る」を押す' + go('s-ctr'));
+  // 集荷
   var pk = C.pickups.filter(function(x){ return !x.received_at; })[0], gotIt = C.pickups.some(function(x){ return x.received_at; });
   if(!gotIt){
     var pr = C.pkr[0];
-    if(pr && pr.method === 'direct') T.push('集荷：直接集荷のご相談があります。実施できるか判断し、理由を記録' + go('s-pick'));
+    if(pr && pr.method === 'direct' && !pk) T.push('集荷：直接集荷のご相談があります。実施できるか判断し、理由を記録' + go('s-pick'));
+    else if(pk && pk.method === 'direct') T.push('集荷：直接集荷（' + (pk.scheduled_at ? dt(pk.scheduled_at) : '日時はお客様と調整') + '）。伺ってお品物を受け取ったら「受領を記録」' + go('s-pick'));
+    else if(pk && pr && pr.method === 'kit' && !pk.tracking_no) T.push('集荷：梱包キットをお客様へ発送する（ご希望日 ' + esc((pr.dates || []).join('、') || '—') + '）。お客様が返送の伝票番号を入れると、ここに表示されます' + go('s-pick'));
     else if(pk) T.push('集荷：お品物が届いたら「受領を記録」' + (pk.tracking_no ? '（伝票 ' + esc(pk.tracking_no) + '）' : '（伝票番号の入力待ち）') + go('s-pick'));
     else if(!pr) T.push('集荷：お客様の集荷のご希望を待っています');
   }
   if(gotIt && !C.items.length) T.push('商品：AIの自動鑑定の結果から「この内容で商品に登録」、または手で登録' + go('s-items'));
+  // 査定
   var ap = C.appraisals[C.appraisals.length - 1];
   if(gotIt && C.items.length && (!ap || ap.status === 'draft')){
     var have = ap ? C.lines.filter(function(l){ return l.appraisal_id === ap.id; }).length : 0;
-    T.push(have < C.items.length ? '査定：各商品の「鑑定シート」で金額を確かめ、「この金額を査定に入れる」（' + have + '/' + C.items.length + '点）' + go('s-items') : '査定：金額がそろいました。「お客様に通知」を押す' + go('s-items')
+    T.push(have < C.items.length ? '査定：各商品の「鑑定シート」で金額を確かめ、「この金額を査定に入れる」（' + have + '/' + C.items.length + '点）' + go('s-items') : '査定：金額がそろいました。「グローブとして申込みをする担当者」を選び、「お客様へ査定結果を通知」を押す' + go('s-items')
       + (!(S.names || []).some(function(n){ return n.active && n.can_contract; }) ? '<br><span class="pill warn">注意</span> 「グローブとして契約できる人」が名簿にいないため、通知してもお客様は画面で契約できません（「担当者」の画面でチェックしてください）' : ''));
   }
-  if(ap && ap.status === 'notified') T.push('査定：お客様の回答待ちです（7日目に自動で再通知、14日で返却のご案内）');
-  var sale = C.contracts.filter(function(k){ return k.kind === 'sale'; })[0];
+  if(ap && ap.status === 'notified') T.push(a.status === 'return_scheduled' ? '査定：回答期限（14日）を過ぎ、返却のご案内を送りました。お客様の返却先の登録を待ち、返却を手配（その前に回答があれば、そのまま続けられます）' + go('s-ret') : '査定：お客様の回答待ちです（7日目に自動で再通知、14日で返却のご案内）');
+  // 契約
+  var sale = C.contracts.filter(function(k){ return k.kind === 'sale' && k.status !== 'void'; })[0];
+  if(!sale && (a.status === 'approved' || a.status === 'partially_approved'))
+    T.push(sellerOk ? '契約：お客様が査定に同意しました。「売買契約書を作成する」' + go('s-ctr') : '契約：お客様は査定に同意済みです。売主の本人確認が済みしだい「売買契約書を作成する」');
+  if(sale && sale.status === 'pending') T.push(C.sigs.some(function(g){ return g.contract_id === sale.id && g.signer_kind === 'buyer'; }) ? '契約：お客様の売買契約書への署名を待っています' + go('s-ctr') : '契約：株式会社グローブとしての署名がまだです（「契約・書類」で署名する人を選び「株式会社グローブ（買主）として署名」）' + go('s-ctr'));
   if(sale && sale.status === 'signed'){
     var pay = C.payments.filter(function(p){ return p.status !== 'cancelled'; })[0];
-    if(!C.banks.length) T.push('振込：お客様の振込先の登録待ちです');
+    if(!C.banks.length && can('finance')) T.push('振込：お客様の振込先の登録待ちです');
     else if(!pay) T.push('振込：「振込を作成する」' + go('s-pay'));
     else if(pay.status === 'draft' || pay.status === 'needs_review') T.push('振込：承認する' + (pay.status === 'needs_review' ? '（名義が一致しないため、確認した内容の記録が必要）' : '') + go('s-pay'));
     else if(pay.status === 'approved') T.push('振込：銀行で振り込み、「振込済にする」' + go('s-pay'));
   }
+  // 返却
+  if(needReturn()){
+    var rt = C.returns.filter(function(r){ return !r.shipped_at; })[0], sent = C.returns.some(function(r){ return r.shipped_at; });
+    if(!C.returns.length && !C.rtr.length && a.status === 'return_scheduled') {}
+    else if(!C.returns.length) T.push(C.rtr.length ? '返却：返却先が届いています（' + esc(C.rtr[0].recipient) + '様）。「返却を記録」して発送' + go('s-ret') : '返却：お客様の返却先の登録を待っています');
+    else if(rt) T.push('返却：発送したら「発送済にする」（お客様にメールでお知らせします）' + go('s-ret'));
+    else if(sent && a.status !== 'returned' && a.status !== 'paid' && a.status !== 'closed') T.push('返却：到着を確認したら、状態を「返却済」に');
+  }
   if(sellerOk === false && sale) T.unshift('注意：本人確認が済んでいません');
   return '<div class="todo"><b>次にやること</b>' + (T.length ? '<ol>' + T.map(function(x){ return '<li>' + x + '</li>'; }).join('') + '</ol>' : '<p style="margin:4px 0 0">いまは、お客様の操作を待っています。</p>') + '</div>';
+}
+// 返却するお品物があるか（辞退・期限切れ・一部売却）
+function needReturn(){
+  var a = C.app;
+  if(['declined','return_scheduled','returning'].indexOf(a.status) >= 0) return true;
+  if(C.approvals.some(function(x){ return x.decision === 'decline'; })) return !C.returns.some(function(r){ return r.shipped_at; }) || a.status === 'returning';
+  return false;
 }
 function offerOptions(){
   var ok = (S.names || []).filter(function(n){ return n.active && n.can_contract; }), mine = ok.filter(function(n){ return (C.app.handler_ids || []).indexOf(n.id) >= 0; })[0];
@@ -342,7 +380,7 @@ async function viewCase(id){ var my = S.seq;
   if(C.photos.length && $('#photos')) C.photos.forEach(async function(p){ try{ var u = await GL.signedUrl('intake', C.app.upload_token + '/' + p.name); var im = new Image(); im.alt = 'お品物の写真'; im.src = u; im.loading = 'lazy'; var a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.appendChild(im); $('#photos').appendChild(a); }catch(e){} });
 }
 var EVENT = { nda_requested:'秘密保持契約を希望', mandate_requested:'委任状を作成して署名を依頼', mandate_accepted:'受任者として委任状に署名', identity_submitted:'本人確認の情報を送信', pickup_requested:'集荷を依頼', shipped:'発送（伝票番号を入力）', bank_registered:'振込先を登録', return_address:'返却先を確認', appraisal_answered:'査定に回答', contract_signed:'書類に署名', mandate_signed:'委任状に署名', mandate_revoked:'委任を撤回' };
-var NOTIF = { new_application:'新しい申込', receipt:'受付番号', appraisal_ready:'査定結果', appraisal_reminder:'査定の再通知', return_notice:'返却予定', staff_reminder:'担当者へ再通知', staff_return_notice:'担当者へ返却予定', contract_ready:'契約書', paid:'振込完了', appraisal_answered:'回答あり', mandate_ready:'委任状', mandate_revoked:'委任撤回', new_contact:'問い合わせ', staff_message:'担当者からの連絡', customer_message:'お客様からの連絡', customer_request:'お客様の手続き', mandate_requested:'代理人が委任状を作成', mandate_signed:'委任状の署名完了', support_new:'チャット相談（担当者へ切替）', test:'通知のテスト', nda_ready:'秘密保持契約書', contract_closed:'契約成立（お客様へ）', sale_closed:'契約成立（担当者へ）' };
+var NOTIF = { return_shipped:'返却の発送', new_application:'新しい申込', receipt:'受付番号', appraisal_ready:'査定結果', appraisal_reminder:'査定の再通知', return_notice:'返却予定', staff_reminder:'担当者へ再通知', staff_return_notice:'担当者へ返却予定', contract_ready:'契約書', paid:'振込完了', appraisal_answered:'回答あり', mandate_ready:'委任状', mandate_revoked:'委任撤回', new_contact:'問い合わせ', staff_message:'担当者からの連絡', customer_message:'お客様からの連絡', customer_request:'お客様の手続き', mandate_requested:'代理人が委任状を作成', mandate_signed:'委任状の署名完了', support_new:'チャット相談（担当者へ切替）', test:'通知のテスト', nda_ready:'秘密保持契約書', contract_closed:'契約成立（お客様へ）', sale_closed:'契約成立（担当者へ）' };
 
 var IDM = { honnin_gentei_yubin:'本人限定受取郵便', mibun_copy_kakitome_koza:'身分証の画像＋転送不要書留＋同名義口座', consult:'相談したい' };
 var PKM = { kit:'梱包キットを送ってほしい', self_ship:'自分で梱包して送る', direct:'直接集荷を相談したい' };
@@ -396,7 +434,7 @@ function renderContracts(){
     var sg = C.sigs.filter(function(s){ return s.contract_id === k.id; });
     return '<tr><td>' + esc(CKIND[k.kind]) + '<br><small>' + esc(k.title) + '</small><br><small class="mono" style="color:var(--mute)">要約値 ' + esc(k.body_sha256.slice(0, 16)) + '…</small></td><td>' + dt(k.created_at) + '</td><td>' + (sg.map(function(s){ return ({ seller:'売主', agent:'代理人', buyer:'買主' })[s.signer_kind] + (s.basis === 'offer' ? '（査定通知による申込み）' : '') + ' ' + dt(s.signed_at); }).join('<br>') || '—') + (k.checks ? '<br><small style="color:var(--mute)">お客様の確認：品物と金額・所有と盗品でないこと・真正品と返金・規約（' + esc(k.checks.termsVersion || '') + '）</small>' : '') + '</td><td>' + (k.status === 'signed' ? '<span class="pill ok">締結</span>' : k.status === 'void' ? '<span class="pill bad">無効</span>' : '<span class="pill warn">署名待ち</span>') + '</td><td><div class="btns">'
       + '<button class="btn sub sm" data-act="view" data-id="' + k.id + '">本文</button><button class="btn sub sm" data-act="intact" data-id="' + k.id + '">改ざん確認</button>'
-      + (k.kind === 'sale' && k.status === 'pending' && can('appraiser') && S.me.company === 'glove' && !sg.some(function(s){ return s.signer_kind === 'buyer'; }) ? '<button class="btn sm" data-act="buyersign" data-id="' + k.id + '">買主として署名</button>' : '')
+      + (k.kind === 'sale' && k.status === 'pending' && can('appraiser') && !sg.some(function(s){ return s.signer_kind === 'buyer'; }) ? '<select id="bn-' + k.id + '" title="株式会社グローブとして署名する人">' + offerOptions() + '</select><button class="btn sm" data-act="buyersign" data-id="' + k.id + '">株式会社グローブ（買主）として署名</button>' : '')
       + '</div></td></tr><tr hidden id="doc-' + k.id + '"><td colspan="5"><pre class="doc">' + esc(k.body) + '</pre></td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="empty">書類はまだありません</p>';
   var ndaReq = C.events.some(function(e){ return e.kind === 'nda_requested'; });
   if(can('reception','appraiser') && !C.contracts.some(function(k){ return k.kind === 'nda' && k.status !== 'void'; }))
@@ -462,7 +500,7 @@ function askFirst(b, text){
   box.querySelectorAll('button')[0].onclick = function(){ box.remove(); b.hidden = false; b.dataset.sure = '1'; b.click(); };
   box.querySelectorAll('button')[1].onclick = function(){ box.remove(); b.hidden = false; };
 }
-var ASK = { nda: '定型の秘密保持契約書を作成し、当社（株式会社グローブ・株式会社マネージメントアドバイザーズ）としてあなたの名前で署名します。お客様へ署名のお願いが届きます。', notify: 'お客様へ査定結果を通知します。通知後は金額を変更できません。株式会社グローブの担当者が通知すると、買主の申込みとして記録され、お客様はお手続き画面のチェックと電子署名だけで売買契約まで完了できます。', buyersign: '株式会社グローブを代表して売買契約に署名します。', paid: '銀行での振込を実行したことを記録します。お客様へ振込完了を通知します。', agentok: '代理人の本人確認が記録済みであることを確認しました。', newap: '新しい版の査定を作成します。通知済みの査定は取り下げになります。' };
+var ASK = { nda: '定型の秘密保持契約書を作成し、当社（株式会社グローブ・株式会社マネージメントアドバイザーズ）としてあなたの名前で署名します。お客様へ署名のお願いが届きます。', notify: 'お客様へ査定結果を通知します。通知後は金額を変更できません。「グローブとして申込みをする担当者」を選んで通知すると、株式会社グローブ（買主）の申込みとして記録され、お客様はお手続き画面のチェックと電子署名だけで売買契約まで完了できます。', buyersign: '株式会社グローブを代表して売買契約に署名します。', paid: '銀行での振込を実行したことを記録します。お客様へ振込完了を通知します。', agentok: '代理人の本人確認が記録済みであることを確認しました。', newap: '新しい版の査定を作成します。通知済みの査定は取り下げになります。' };
 var FORMS = {
   status: function(d){ var h = Object.keys(d).filter(function(k){ return /^h_/.test(k) && d[k] === true; }).map(function(k){ return k.slice(2); }); return GL.update('applications', { id: C.app.id }, { status: d.status, handler_ids: h }); },
   cust: function(d){ return GL.update('customers', { id: C.cust.id }, { kind: d.kind, name: d.name, email: (d.email || '').toLowerCase() || null, tel: d.tel || null, verified_name: d.verified_name || null, verified_kana: d.verified_kana || null }); },
@@ -519,7 +557,7 @@ var ACTS = {
   },
   agentok: function(id){ return GL.update('mandates', { id: id }, { agent_identity_checked: true }); },
   intact: async function(id){ var ok = await GL.rpc('contract_intact', { p_contract: id }); if(!ok) throw new Error('改ざんの疑いがあります。本文または署名時の内容が一致しません'); return '改ざんは検出されませんでした'; },
-  buyersign: async function(id){ await GL.rpc('staff_sign_contract', { p_contract: id }); return '署名しました'; },
+  buyersign: async function(id){ var el = $('#bn-' + id), on = el ? el.value : ''; await GL.rpc('staff_sign_contract', { p_contract: id, p_name: on || null }); return '株式会社グローブ（買主）として署名しました' + (on ? '（' + nameOf(on) + 'さん）' : ''); },
   nda: async function(){ await GL.rpc('staff_create_nda', { p_application: C.app.id }); return '秘密保持契約を作成し、お客様へ署名をお願いしました'; },
   paid: async function(id){ await GL.rpc('staff_mark_paid', { p_payment: id }); return '振込を記録しました'; },
   shipped: function(id){ return GL.update('returns', { id: id }, { shipped_at: new Date().toISOString() }); },
