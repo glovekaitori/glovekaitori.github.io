@@ -127,7 +127,7 @@
     var r=await window.gloveCall('submit_application',{p:payload});
     if(r.ok&&r.data&&r.data.receiptNo){
       document.getElementById('receiptNo').textContent=r.data.receiptNo;
-      try{sessionStorage.setItem('gl-receipt',r.data.receiptNo);}catch(x){}
+      try{sessionStorage.setItem('gl-receipt',r.data.receiptNo);if(current.email)localStorage.setItem('gl-mail',String(current.email).trim().toLowerCase());}catch(x){}
       var pn=document.getElementById('photoNote');pn.textContent='';
       if(photos.length){
         b.textContent='写真を送信しています';var okN=0;

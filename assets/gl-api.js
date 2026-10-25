@@ -7,8 +7,11 @@
   var GL = { url: (C.supabaseUrl || '').replace(/\/$/, ''), key: C.supabaseAnonKey || '', session: null };
   GL.configured = !!(GL.url && GL.key);
 
-  GL.useStore = function(name){ STORE = name; try{ GL.session = JSON.parse(sessionStorage.getItem(STORE) || 'null'); }catch(e){ GL.session = null; } };
-  function save(s){ GL.session = s; try{ s ? sessionStorage.setItem(STORE, JSON.stringify(s)) : sessionStorage.removeItem(STORE); }catch(e){} }
+  // keep：この端末にログインを残す（お客様用）。担当者用は画面を閉じるとログアウトする
+  var KEEP = false;
+  function box(){ try{ return KEEP ? localStorage : sessionStorage; }catch(e){ return null; } }
+  GL.useStore = function(name, keep){ STORE = name; KEEP = !!keep; try{ GL.session = JSON.parse(box().getItem(STORE) || 'null'); }catch(e){ GL.session = null; } };
+  function save(s){ GL.session = s; try{ s ? box().setItem(STORE, JSON.stringify(s)) : box().removeItem(STORE); }catch(e){} }
   function claims(tok){ try{ var p = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'); return JSON.parse(decodeURIComponent(escape(atob(p)))); }catch(e){ return {}; } }
   GL.claims = function(){ return GL.session ? claims(GL.session.access_token) : {}; };
   GL.aal = function(){ return GL.claims().aal || null; };
@@ -42,7 +45,16 @@
   // ── ログイン ──
   function adopt(j){ if(!j || !j.access_token) throw new Error('ログインできませんでした'); j.expires_at = Math.floor(Date.now()/1000) + (j.expires_in || 3600); save(j); return j; }
   GL.signInPassword = async function(email, password){ return adopt(await raw('POST', '/auth/v1/token?grant_type=password', { email: email, password: password }, null, false)); };
-  GL.sendOtp = async function(email){ return raw('POST', '/auth/v1/otp', { email: email, create_user: true }, null, false); };
+  // redirectTo を渡すと、メールのボタンを押すだけでログインできる（6桁のコードでも可）
+  GL.sendOtp = async function(email, redirectTo){ return raw('POST', '/auth/v1/otp' + (redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''), { email: email, create_user: true }, null, false); };
+  // メールのボタンから戻ってきたとき（アドレスの # 以降にログイン情報が付く）
+  GL.fromLink = function(){
+    var h = location.hash.replace(/^#/, ''); if(!/access_token=|error_description=/.test(h)) return null;
+    var q = {}; h.split('&').forEach(function(kv){ var i = kv.indexOf('='); if(i > 0) q[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); });
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){ location.hash = ''; }
+    if(q.error_description) return { error: /expired|invalid/i.test(q.error_description) ? 'ログイン用のボタンの有効期限が切れています。もう一度メールを受け取ってください' : 'ログインできませんでした。もう一度メールを受け取ってください' };
+    adopt({ access_token: q.access_token, refresh_token: q.refresh_token, expires_in: Number(q.expires_in) || 3600 }); return { ok: true };
+  };
   GL.verifyOtp = async function(email, code){ return adopt(await raw('POST', '/auth/v1/verify', { type: 'email', email: email, token: code }, null, false)); };
   GL.ensureFresh = async function(){
     var s = GL.session; if(!s) return;

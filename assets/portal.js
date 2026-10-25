@@ -1,5 +1,5 @@
 /* G-LOVE お客様用画面（取引状況・査定結果・契約書類）
-   受付番号とメールアドレスで確認コードを受け取り、ログインする。 */
+   メールアドレスを入れ、届いたメールのボタン（または6桁のコード）でログインする。この端末ではログインを保つ。 */
 (function(){
 'use strict';
 var box = document.getElementById('portal'); if(!box) return;
@@ -18,44 +18,44 @@ var STEPS = ['受付','ご本人確認','集荷・受領','査定','ご回答','
 var CK = { sale:'売買契約書', mandate:'委任状', nda:'秘密保持契約書', receipt:'受領書' };
 var EV = { withdrawn:'契約の前に辞退', nda_requested:'秘密保持契約を希望', mandate_requested:'委任状を作成して署名を依頼', mandate_accepted:'受任者として委任状に署名', identity_submitted:'本人確認の情報を送信', pickup_requested:'集荷を依頼', shipped:'発送', bank_registered:'振込先を登録', return_address:'返却先を確認', appraisal_answered:'査定に回答', contract_signed:'書類に署名', mandate_signed:'委任状に署名', mandate_revoked:'委任を撤回' };
 
-GL.useStore('gl-portal');
+GL.useStore('gl-portal', true);
 var cases = [];
 function msg(t, bad){ var m = $('#pmsg'); m.className = bad ? 'alert' : 'note'; m.hidden = !t; m.textContent = t || ''; if(t) m.scrollIntoView({ block:'nearest' }); }
 
-// ── ログイン ──
+// ── ログイン（メールアドレスだけ。メールのボタンを押すとログイン。この端末では次回からログイン不要） ──
 function viewLogin(){
   box.innerHTML = '<div id="pmsg" hidden role="status"></div>'
-    + '<ol class="lsteps" aria-label="ログインの手順"><li class="now" id="ls1">受付番号とメール</li><li id="ls2">確認コード</li><li id="ls3">お手続き</li></ol>'
-    + '<form class="gate" id="p1" novalidate><p>お申込み時の<b>受付番号</b>と、ご登録の<b>メールアドレス</b>を入力してください。そのメールアドレスに、6桁の確認コードをお送りします。</p>'
-    + '<div class="field"><label for="p-no">受付番号</label><input type="text" id="p-no" autocomplete="off" spellcheck="false" placeholder="例：GL261023-ABCDE" required><p class="hint">「GL」で始まる番号です。申込完了の画面と、「お申込みを受け付けました」のメールに記載しています。</p></div>'
+    + '<form class="gate" id="p1" novalidate><p>お申込みのときの<b>メールアドレス</b>を入力してください。ログイン用のメールをお送りします。メールの<b>「ログインする」ボタンを押すだけ</b>で、お手続きの画面が開きます。</p>'
     + '<div class="field"><label for="p-mail">メールアドレス</label><input type="email" id="p-mail" autocomplete="email" required><p class="hint">代理の方は、代理として申し込んだときのメール、または委任状に登録されたメールです。</p></div>'
-    + '<div class="btns"><button class="btn" type="submit">確認コードを受け取る</button></div>'
-    + '<p class="hint" style="font-size:.82rem;color:var(--on-dark-mute)">パスワードは不要です。わからないときは、画面右下の「使い方・相談」から担当者にご質問ください。</p></form>'
-    + '<form class="gate" id="p2" hidden novalidate><p id="p2t"></p><div class="field"><label for="p-code">確認コード（6桁の数字）</label><input type="text" id="p-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required><p class="hint">メールが見当たらないときは、迷惑メールのフォルダもご確認ください。コードの有効期限は1時間です。</p></div>'
-    + '<div class="btns"><button class="btn" type="submit">ログインする</button><button class="btn ghost" type="button" id="p-back">戻る</button></div></form>';
-  var no = '', mail = '';
-  try{ $('#p-no').value = sessionStorage.getItem('gl-receipt') || ''; }catch(e){}
+    + '<div class="btns"><button class="btn" type="submit">ログイン用のメールを受け取る</button></div>'
+    + '<p class="hint" style="font-size:.82rem;color:var(--on-dark-mute)">パスワードや受付番号は不要です。一度ログインすると、この端末では次回からログインせずに開けます（共用の端末では、使い終わったら「ログアウト」を押してください）。</p></form>'
+    + '<form class="gate" id="p2" hidden novalidate><p id="p2t"></p>'
+    + '<details style="margin-top:12px"><summary style="cursor:pointer">ボタンが押せないときは（6桁のコードで入る）</summary><div class="field" style="margin-top:10px"><label for="p-code">メールに記載の6桁の数字</label><input type="text" id="p-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>'
+    + '<div class="btns"><button class="btn" type="submit">ログインする</button></div></details>'
+    + '<div class="btns"><button class="btn ghost" type="button" id="p-back">メールアドレスを入れ直す</button></div></form>';
+  var mail = '';
+  try{ $('#p-mail').value = localStorage.getItem('gl-mail') || ''; }catch(e){}
   if(!GL.configured){ msg('現在、お客様用画面は準備中です。お取引の状況は担当者からご連絡します。', true); $('#p1 button').disabled = true; return; }
   $('#p1').addEventListener('submit', async function(e){
-    e.preventDefault(); no = $('#p-no').value.trim().toUpperCase(); mail = $('#p-mail').value.trim().toLowerCase();
-    if(!/^GL[0-9]{6}-[A-Z0-9]{5}$/.test(no)) return msg('受付番号の形式をご確認ください（例：GL261023-ABCDE）', true);
+    e.preventDefault(); mail = $('#p-mail').value.trim().toLowerCase();
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return msg('メールアドレスの形式をご確認ください', true);
     var b = this.querySelector('button'); b.disabled = true;
-    try{ var okp = await GL.rpc('portal_precheck', { p_receipt: no, p_email: mail }, true);
-      if(!okp) throw new Error('受付番号とメールアドレスの組み合わせが見つかりません。入力をご確認ください。代理の方は、代理として申し込んだときのメール、または委任状に登録されたメールでログインします。');
-      await GL.sendOtp(mail); msg(''); $('#p1').hidden = true; $('#p2').hidden = false; $('#ls1').className = 'done'; $('#ls2').className = 'now'; $('#p2t').textContent = mail + ' に確認コードを送りました。メールに記載の6桁の数字を入力してください。'; $('#p-code').focus(); }
+    try{ await GL.sendOtp(mail, location.origin + location.pathname); try{ localStorage.setItem('gl-mail', mail); }catch(e){}
+      msg(''); $('#p1').hidden = true; $('#p2').hidden = false;
+      $('#p2t').innerHTML = '<b>' + esc(mail) + '</b> にログイン用のメールを送りました。メールを開いて<b>「ログインする」ボタン</b>を押してください。<br><small>届かないときは迷惑メールのフォルダもご確認ください。お申込みのないメールアドレスには、お手続きの画面は表示されません。</small>'; }
     catch(x){ msg(x.message, true); } b.disabled = false;
   });
-  $('#p-back').onclick = function(){ $('#p2').hidden = true; $('#p1').hidden = false; $('#ls1').className = 'now'; $('#ls2').className = ''; msg(''); };
+  $('#p-back').onclick = function(){ $('#p2').hidden = true; $('#p1').hidden = false; msg(''); };
   $('#p2').addEventListener('submit', async function(e){
-    e.preventDefault(); var b = this.querySelector('button'); b.disabled = true;
-    try{
-      await GL.verifyOtp(mail, $('#p-code').value.trim());
-      try{ await GL.rpc('portal_claim', { p_receipt: no }); }catch(x){ await GL.signOut(); throw x; }
-      try{ sessionStorage.setItem('gl-receipt', no); }catch(e){}
-      await load();
-    }catch(x){ msg(x.message, true); b.disabled = false; }
+    e.preventDefault(); var b = this.querySelector('button[type=submit]'); var code = $('#p-code').value.trim();
+    if(!/^[0-9]{6}$/.test(code)) return msg('6桁の数字を入力してください', true);
+    b.disabled = true;
+    try{ await GL.verifyOtp(mail, code); await enter(); }catch(x){ msg(x.message, true); b.disabled = false; }
   });
+}
+async function enter(){
+  try{ await GL.rpc('portal_claim_all', {}); }catch(x){}
+  await load();
 }
 
 // ── ログイン後 ──
@@ -65,7 +65,7 @@ async function load(){
   box.innerHTML = '<div class="ptabs">' + tabs.map(function(t){ return '<a href="' + PRE + t[0] + '/"' + (t[0] === VIEW ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('')
     + '<button class="btn ghost" type="button" id="p-out">ログアウト</button></div><p class="ptab-help">' + ({ status:'いちばん上の枠が「次にやること」です。枠の中で入力して送ると、次の手順に進みます。', result:'お品物ごとに「売る」か「返却」を選び、「次へ（内容の確認）」を押してください。契約書を確認し、4つの項目にチェックを入れて署名すると、売買契約まで完了します。', documents:'書類を読み、「同意」にチェックしてから電子署名してください。印刷やPDFでの保存もできます。' })[VIEW] + '</p><div id="pmsg" hidden role="status"></div><div id="pv"></div>';
   $('#p-out').onclick = async function(){ await GL.signOut(); viewLogin(); msg('ログアウトしました'); };
-  if(!cases.length){ $('#pv').innerHTML = '<p class="note">表示できるお取引がありません。</p>'; return; }
+  if(!cases.length){ $('#pv').innerHTML = '<p class="note">このメールアドレスのお取引は見つかりませんでした。お申込みのときのメールアドレスでログインしてください（代理の方は、委任状に登録されたメールアドレス）。</p>'; return; }
   ({ status: vStatus, result: vResult, documents: vDocs })[VIEW]();
 }
 function head(c){ var nx = VIEW !== 'status' ? tasks(c)[0] : null; return '<div class="phd"><p class="eyebrow">受付番号</p><h2 class="no">' + esc(c.receiptNo) + '</h2><p>' + esc(STATUS[c.status] || c.status) + '</p>'
@@ -394,5 +394,7 @@ function vDocs(){
   };
 }
 
-if(GL.session){ load().catch(function(e){ GL.signOut(); viewLogin(); msg(e.message, true); }); } else viewLogin();
+var back = GL.configured ? GL.fromLink() : null;
+if(back && back.error){ viewLogin(); msg(back.error, true); }
+else if(GL.session){ (back ? enter() : load()).catch(function(e){ GL.signOut(); viewLogin(); msg(e.message, true); }); } else viewLogin();
 })();
