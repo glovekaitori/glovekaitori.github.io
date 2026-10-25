@@ -394,6 +394,10 @@ function vDocs(){
   };
 }
 
+// メールのボタンが同じタブで開かれたとき（アドレスの # だけが変わる）
+window.addEventListener('hashchange', function(){ var r = GL.fromLink(); if(!r) return; if(r.error){ viewLogin(); msg(r.error, true); } else enter().catch(function(e){ msg(e.message, true); }); });
+// 別のタブでログインが済んだら、この画面もそのまま開く（「メールを送りました」の画面で待っている場合）
+window.addEventListener('storage', function(e){ if(e.key !== 'gl-portal' || !e.newValue || $('#pv')) return; GL.useStore('gl-portal', true); if(GL.session) enter().catch(function(x){ msg(x.message, true); }); });
 var back = GL.configured ? GL.fromLink() : null;
 if(back && back.error){ viewLogin(); msg(back.error, true); }
 else if(GL.session){ (back ? enter() : load()).catch(function(e){ GL.signOut(); viewLogin(); msg(e.message, true); }); } else viewLogin();
