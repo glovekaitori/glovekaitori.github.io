@@ -67,6 +67,7 @@ async function load(){
   $('#p-out').onclick = async function(){ await GL.signOut(); viewLogin(); msg('ログアウトしました'); };
   if(!cases.length){ $('#pv').innerHTML = '<p class="note">このメールアドレスのお取引は見つかりませんでした。お申込みのときのメールアドレスでログインしてください（代理の方は、委任状に登録されたメールアドレス）。</p>'; return; }
   ({ status: vStatus, result: vResult, documents: vDocs })[VIEW]();
+  if(/^#c-[0-9a-f]{8}$/.test(location.hash)) setTimeout(function(){ var el = document.querySelector(location.hash); if(el) el.scrollIntoView({ block: 'start' }); }, 150);
 }
 function head(c){ var nx = VIEW !== 'status' ? tasks(c)[0] : null; return '<div class="phd"><p class="eyebrow">受付番号</p><h2 class="no">' + esc(c.receiptNo) + '</h2><p>' + esc(STATUS[c.status] || c.status) + '</p>'
   + (nx && nx.key !== 'info' && nx.key !== 'wait' && !(nx.key === 'link' && nx.href === VIEW) ? '<p class="pnext">次にやること：<a href="' + PRE + 'status/#c-' + c.id.slice(0, 8) + '">' + esc(nx.title) + '</a></p>' : '')
@@ -187,6 +188,20 @@ function msgBox(c){
     return '<div class="pm ' + (m.kind === 'staff' ? 'staff' : 'me') + '"><p class="pmeta">' + esc(who) + '　' + dt(m.at) + '</p><p>' + esc(m.body) + '</p></div>'; }).join('') : '<p class="pmeta">まだ連絡はありません。</p>') + '</div>'
     + '<form class="ptask-f" data-do="message" novalidate><div class="field"><label for="m-' + c.id.slice(0, 8) + '">メッセージ</label><textarea id="m-' + c.id.slice(0, 8) + '" name="body" maxlength="2000" required placeholder="ご質問・ご要望をどうぞ。担当者からお返事します。"></textarea><p class="hint">お返事が届くと、メールでお知らせします（メールにはメッセージの内容を載せません）。</p></div><div class="btns"><button class="btn ghost" type="submit">送信する</button></div></form>';
 }
+// 入力済みの内容（申込・本人確認で入れたお名前・ご住所など）を、空欄に自動で入れる
+async function prefill(){
+  var arts = document.querySelectorAll('[data-case]');
+  for(var i = 0; i < arts.length; i++){
+    var art = arts[i]; if(!art.querySelector('form[data-do=identity],form[data-do=pickup],form[data-do=bank]')) continue;
+    var d = null; try{ d = await GL.rpc('portal_prefill', { p_app: art.dataset.case }); }catch(e){ continue; } if(!d) continue;
+    var put = function(sel, v){ var el = art.querySelector(sel); if(el && !el.value && v) el.value = v; };
+    put('form[data-do=identity] [name=fullName]', d.fullName); put('form[data-do=identity] [name=kana]', d.kana); put('form[data-do=identity] [name=birthdate]', d.birthdate);
+    put('form[data-do=identity] [name=occupation]', d.occupation); put('form[data-do=identity] [name=address]', d.address); put('form[data-do=identity] [name=tel]', d.tel);
+    var pa = art.querySelector('form[data-do=pickup] [name=address]'); if(pa && d.address && (!pa.value || d.address.indexOf(pa.value) === 0)) pa.value = d.address;
+    put('form[data-do=pickup] [name=recipient]', d.fullName); put('form[data-do=pickup] [name=tel]', d.tel);
+    put('form[data-do=bank] [name=holderName]', d.kana);
+  }
+}
 function vStatus(){
   var todo = cases.filter(function(c){ var t = tasks(c)[0]; return ['mandate','identity','pickup','tracking','bank','return','link'].indexOf(t.key) >= 0; });
   var summary = cases.length > 1 ? '<div class="psummary"><p class="eyebrow">本日の状況</p><p>対応が必要なお手続き：<b>' + todo.length + '件</b>（全' + cases.length + '件のお取引）</p>' + (todo.length ? '<ul>' + todo.map(function(c){ return '<li><a href="#c-' + c.id.slice(0, 8) + '">' + esc(c.receiptNo) + '</a>　' + esc(tasks(c)[0].title) + '</li>'; }).join('') + '</ul>' : '') + '</div>' : '';
@@ -214,6 +229,7 @@ function vStatus(){
     out += msgBox(c);
     return out + '</article>';
   }).join('');
+  prefill();
   // 担当者からの返信を数秒ごとに反映（入力中の内容は消さない）
   if(window.__pmTimer) clearInterval(window.__pmTimer);
   window.__pmTimer = setInterval(async function(){
@@ -290,7 +306,7 @@ function vResult(){
     var total = ap.lines.reduce(function(s, l){ return s + l.amount; }, 0);
     var sale = (c.contracts || []).filter(function(k){ return k.kind === 'sale'; }).pop();
     var out = '<article class="pcase" data-ap="' + ap.id + '">' + head(c);
-    if(sale && sale.status === 'signed') out += '<div class="pdone"><p class="pdone-t">売買契約が成立しました</p><p>成立日時 ' + dt(sale.signedAt) + '。契約書の控えは「契約・書類」でいつでも確認・保存できます。' + (c.bank && c.bank.length ? 'お振込みの準備ができしだい、お知らせします。' : '<b>振込先をご登録ください</b>（「お手続き」の画面から登録できます）。') + '</p><div class="btns"><a class="btn ghost" href="' + PRE + 'documents/">契約書を見る</a><a class="btn ghost" href="' + PRE + 'status/">お手続きへ</a></div></div>';
+    if(sale && sale.status === 'signed') out += '<div class="pdone"><p class="pdone-t">売買契約が成立しました</p><p>成立日時 ' + dt(sale.signedAt) + '。契約書の控えは「契約・書類」でいつでも確認・保存できます。' + (c.bank && c.bank.length ? 'お振込みの準備ができしだい、お知らせします。' : '<b>続けて、振込先の口座をご登録ください。</b>') + '</p><div class="btns">' + (c.bank && c.bank.length ? '' : '<a class="btn" href="' + PRE + 'status/#c-' + c.id.slice(0, 8) + '">振込先を登録する</a>') + '<a class="btn ghost" href="' + PRE + 'documents/">契約書を見る</a></div></div>';
     out += '<p class="note">査定日 ' + dt(ap.notifiedAt) + (open ? '　お品物ごとに「売る」か「返却」をお選びください。ご回答がない場合に、売却したものとして扱うことはありません。' : '') + '</p>'
       + '<div class="tbl-wrap"><table class="tbl presult"><thead><tr><th>お品物</th><th class="r">数量</th><th class="r">査定額</th><th>ご回答</th></tr></thead><tbody>'
       + ap.lines.map(function(l){ return '<tr><td>' + esc(l.category) + '<br><small>' + esc(l.description) + '</small>' + (l.note ? '<br><small>' + esc(l.note) + '</small>' : '') + '</td><td class="r">' + l.quantity + '</td><td class="r num">' + yen(l.amount) + '</td><td>'

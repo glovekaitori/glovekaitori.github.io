@@ -191,3 +191,8 @@ if(LIVE){
   setInterval(function(){ if(d.hidden) return; if(pn.hidden || tab !== 'chat') poll(); }, 30000);
 }
 })();
+
+(function(){ var T = /^(INPUT|TEXTAREA|SELECT)$/;
+  document.addEventListener('focusin', function(e){ if(T.test(e.target.tagName) && !(e.target.closest && e.target.closest('.hp-panel'))) document.body.classList.add('hp-typing'); });
+  document.addEventListener('focusout', function(e){ if(T.test(e.target.tagName)) setTimeout(function(){ var a = document.activeElement; if(!a || !T.test(a.tagName)) document.body.classList.remove('hp-typing'); }, 50); });
+})();

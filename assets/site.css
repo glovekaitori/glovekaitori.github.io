@@ -627,3 +627,17 @@ body::after{content:"";position:fixed;inset:0;z-index:100;pointer-events:none;op
 @media (max-width:860px){ main{padding-bottom:84px} .ft{padding-bottom:96px} }
 .field .consent{display:flex;gap:12px;align-items:flex-start;cursor:pointer;line-height:1.7;font-size:13px;margin-top:12px;color:var(--mute, #a9a193)}
 .field .consent input{width:22px;height:22px;flex:none;margin-top:3px;accent-color:var(--gold)}
+/* お手続きの画面（status/result/documents）：見出しを小さくし、「次にやること」をすぐ見えるように */
+body[data-page="status"] .phead .wrap,body[data-page="result"] .phead .wrap,body[data-page="documents"] .phead .wrap{padding-block:20px 18px}
+body[data-page="status"] .phead p:not(.eyebrow),body[data-page="result"] .phead p:not(.eyebrow),body[data-page="documents"] .phead p:not(.eyebrow),
+body[data-page="status"] .phead .crumb,body[data-page="result"] .phead .crumb,body[data-page="documents"] .phead .crumb{display:none}
+body[data-page="status"] .phead h1,body[data-page="result"] .phead h1,body[data-page="documents"] .phead h1{font-size:1.3rem;margin-top:2px}
+body[data-page="status"] .phead::after,body[data-page="result"] .phead::after,body[data-page="documents"] .phead::after{display:none}
+body[data-page="status"] .sec:first-of-type,body[data-page="result"] .sec,body[data-page="documents"] .sec,body[data-page="status"] .sec{padding-top:20px}
+/* スマホ：「使い方・相談」ボタンを小さな丸にして、入力欄に重ならないようにする。入力中は隠す */
+@media (max-width:520px){
+  .hp-btn{min-height:48px;width:48px;padding:0;justify-content:center;border-radius:50%}
+  .hp-btn span:not(.hp-dot){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  body{padding-bottom:72px}
+}
+body.hp-typing .hp-btn{opacity:0;pointer-events:none;transition:opacity .2s}
