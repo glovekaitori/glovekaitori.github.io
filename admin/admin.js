@@ -892,14 +892,20 @@ var MAIL = { rows: null, extra: '' };
 function drawMail(){
   var box = $('#mail-out'); if(!box) return;
   if(!MAIL.rows || MAIL.app !== C.app.id){
-    var src = (C.aiLast && C.aiLast.items && C.aiLast.items.length) ? C.aiLast.items.map(function(it){ return [it.brand, it.model].filter(Boolean).join(' ') || it.category || ''; })
-      : C.items.length ? C.items.map(function(it){ return it.description; }) : [''];
-    MAIL = { app: C.app.id, rows: src.map(function(n){ return { name: n, lo: '', hi: '' }; }), photos: (C.aiLast && C.aiLast.more_photos) || [] };
+    var rows = C.items.length ? C.items.map(function(it){ return { name: it.description, lo: '', hi: '', itemId: it.id }; })
+      : (C.aiLast && C.aiLast.items && C.aiLast.items.length) ? C.aiLast.items.map(function(it){ return { name: [it.brand, it.model].filter(Boolean).join(' ') || it.category || '', lo: '', hi: '', cat: it.category }; })
+      : [{ name: '', lo: '', hi: '' }];
+    MAIL = { app: C.app.id, rows: rows, photos: (C.aiLast && C.aiLast.more_photos) || [] };
   }
+  // 商品と査定との連動：品名が同じ商品があれば結び付ける
+  MAIL.rows.forEach(function(r){ if(r.itemId && !C.items.some(function(it){ return it.id === r.itemId; })) delete r.itemId;
+    if(!r.itemId && r.name){ var hit = C.items.filter(function(it){ return it.description === r.name.trim() && !MAIL.rows.some(function(o){ return o.itemId === it.id; }); })[0]; if(hit) r.itemId = hit.id; } });
+  var linkOk = mailLinkOk();
   box.innerHTML = '<div class="ai-box mail-box"><p class="ai-h">お客様へのご案内文（写真による査定の目安）</p>'
     + '<p class="note" style="margin:0">金額を入れると、下の文章に反映されます。AIの結果は参考にとどめ、品名と金額は担当者が確かめて入力してください。</p>'
+    + (linkOk ? '<p class="note" style="margin:4px 0 0">品名を入力して欄から離れると、「商品と査定」に同じ品名で登録（すでに連動している商品は品名を更新）します。行を削除しても、登録済みの商品は消えません。</p>' : C.items.length ? '<p class="note" style="margin:4px 0 0">査定をお客様に通知したあとのため、品名を変えても「商品と査定」には反映しません。</p>' : '')
     + '<div class="tw"><table class="mail-t"><thead><tr><th>品名（お客様に表示）</th><th class="r">目安の下限（円）</th><th class="r">目安の上限（円）</th><th></th></tr></thead><tbody>'
-    + MAIL.rows.map(function(r, i){ return '<tr><td><input data-m="name" data-i="' + i + '" value="' + esc(r.name) + '"></td><td><input data-m="lo" data-i="' + i + '" type="number" min="0" step="1000" value="' + esc(r.lo) + '"></td><td><input data-m="hi" data-i="' + i + '" type="number" min="0" step="1000" value="' + esc(r.hi) + '"></td><td><button class="btn sub sm" type="button" data-mdel="' + i + '">削除</button></td></tr>'; }).join('')
+    + MAIL.rows.map(function(r, i){ return '<tr><td><input data-m="name" data-i="' + i + '" value="' + esc(r.name) + '">' + (r.itemId ? '<small style="display:block;color:var(--ok,#7bb27b)">商品と査定に連動中</small>' : '') + '</td><td><input data-m="lo" data-i="' + i + '" type="number" min="0" step="1000" value="' + esc(r.lo) + '"></td><td><input data-m="hi" data-i="' + i + '" type="number" min="0" step="1000" value="' + esc(r.hi) + '"></td><td><button class="btn sub sm" type="button" data-mdel="' + i + '">削除</button></td></tr>'; }).join('')
     + '</tbody></table></div><div class="btns"><button class="btn sub sm" type="button" id="m-add">行を追加</button><label style="font-size:12px"><input type="checkbox" id="m-mask"' + (MAIL.mask ? ' checked' : '') + '> 品名を伏せる（「お品物1」などと表示）</label></div>'
     + '<label class="l">追加でお願いする写真（任意・1行に1つ）<textarea id="m-photos" style="min-height:50px">' + esc((MAIL.photos || []).join('\n')) + '</textarea></label>'
     + '<label class="l">メールの文章（そのまま編集もできます）<textarea id="m-text" style="min-height:300px;font-family:inherit"></textarea></label>'
@@ -926,7 +932,7 @@ function drawMail(){
   var redraw = function(){ $('#m-text').value = make(); };
   redraw();
   box.oninput = function(e){ var t = e.target; if(t.dataset.m){ MAIL.rows[t.dataset.i][t.dataset.m] = t.value; redraw(); } if(t.id === 'm-photos'){ MAIL.photos = t.value.split('\n'); redraw(); } };
-  box.onchange = function(e){ if(e.target.id === 'm-mask'){ MAIL.mask = e.target.checked; redraw(); } };
+  box.onchange = function(e){ if(e.target.id === 'm-mask'){ MAIL.mask = e.target.checked; redraw(); } if(e.target.dataset.m === 'name') syncMailItem(Number(e.target.dataset.i)); };
   box.onclick = async function(e){ var t = e.target;
     if(t.id === 'm-add'){ MAIL.rows.push({ name: '', lo: '', hi: '' }); drawMail(); }
     if(t.dataset.mdel){ MAIL.rows.splice(Number(t.dataset.mdel), 1); if(!MAIL.rows.length) MAIL.rows.push({ name: '', lo: '', hi: '' }); drawMail(); }
@@ -936,6 +942,20 @@ function drawMail(){
       t.disabled = true; try{ var body = $('#m-text').value.replace(/^件名：.*\n\n/, ''); await GL.insert('messages', { application_id: C.app.id, sender: GL.userId(), sender_kind: 'staff', body: body.slice(0, 2000) }); toast('お手続き画面の連絡として送りました'); }catch(x){ toast(x.message, true); }
       t.disabled = false; delete t.dataset.sure; t.textContent = 'お手続き画面の連絡として送る'; }
   };
+}
+// ご案内文の品名を「商品と査定」に連動させる（査定をお客様に通知する前だけ。査定の権限が必要）
+function mailLinkOk(){ var ap = latestAppraisal(); return can('appraiser') && (!ap || ap.status === 'draft'); }
+var CATS = ['時計','宝石・ジュエリー','ブランドバッグ・小物','貴金属','美術品・骨董','その他'];
+async function syncMailItem(i){
+  var r = MAIL.rows[i]; if(!r || !mailLinkOk()) return; var name = String(r.name || '').trim(); if(!name) return;
+  try{
+    if(r.itemId){ var cur = C.items.filter(function(it){ return it.id === r.itemId; })[0]; if(!cur || cur.description === name) return;
+      await GL.update('items', { id: r.itemId }, { description: name }); cur.description = name; toast('「商品と査定」の品名を「' + name + '」に更新しました'); }
+    else { var cat = CATS.indexOf(r.cat) >= 0 ? r.cat : ((C.app.categories || []).filter(function(c){ return CATS.indexOf(c) >= 0; })[0] || 'その他');
+      var row = await GL.insert('items', { application_id: C.app.id, category: cat, description: name, quantity: 1 }); if(!row || !row.id) throw new Error('商品の登録に失敗しました');
+      C.items.push(row); r.itemId = row.id; toast('「商品と査定」に「' + name + '」を登録しました（種類：' + cat + '）。型番・状態などは「商品と査定」で追記してください'); }
+    var sec = $('#s-items .in'); if(sec) sec.innerHTML = renderItems(); drawMail();
+  }catch(x){ toast(x.message, true); }
 }
 // 鑑定補助の報告書（A4・写真は縮小。お名前・ご住所・連絡先は載せない）。印刷画面で「PDFに保存」を選ぶ
 async function photoReport(){
@@ -1198,7 +1218,7 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
     if(t.id === 'sh-save'){ t.disabled = true; try{ var v = (sheets[0] ? sheets[0].version : 0) + 1, c = calc(); D.result = { rank: c.rank, rate: c.rate, est: c.est, low: c.low, std: c.std, high: c.high, offer: num(D.s3.offerFinal) };
         var row = await GL.insert('appraisal_sheets', { application_id: appId, item_id: it ? it.id : null, slot: it ? 1 : slot, version: v, data: D, created_by: GL.userId() }); sheets.unshift(row || { version: v, created_at: new Date().toISOString(), created_by: GL.userId(), data: D }); toast('第' + v + '版として保存しました'); render(); }catch(x){ toast(x.message, true); } t.disabled = false; return; }
     if(t.id === 'sh-mail'){ var c2 = calc(), off = num(D.s3.offerFinal) != null ? num(D.s3.offerFinal) : c2.std;
-      MAIL = { app: appId, rows: [{ name: [D.s1.brand, D.s1.model].filter(Boolean).join(' ') || (it && it.description) || '', lo: c2.low != null ? String(c2.low) : '', hi: off != null ? String(off) : '' }], photos: [] }; location.hash = 'case/' + appId; toast('案件の画面の「お客様へのご案内文」に反映しました'); return; }
+      MAIL = { app: appId, rows: [{ itemId: it ? it.id : undefined, cat: cat, name: (it && it.description) || [D.s1.brand, D.s1.model].filter(Boolean).join(' ') || '', lo: c2.low != null ? String(c2.low) : '', hi: off != null ? String(off) : '' }], photos: [] }; location.hash = 'case/' + appId; toast('案件の画面の「お客様へのご案内文」に反映しました'); return; }
     if(t.id === 'sh-pdf'){ sheetPdf(a, it, D, calc(), cat); return; }
   };
 }
