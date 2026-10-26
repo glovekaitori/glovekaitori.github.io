@@ -302,6 +302,38 @@ function nextTodo(){
   return '<div class="todo"><b>次にやること</b>' + (T.length ? '<ol>' + T.map(function(x){ return '<li>' + x + '</li>'; }).join('') + '</ol>' : '<p style="margin:4px 0 0">いまは、お客様の操作を待っています。</p>') + '</div>';
 }
 // 返却するお品物があるか（辞退・期限切れ・一部売却）
+// 案件の画面：手続きの順に番号を付け、それぞれ「完了・未完了・お客様待ち・対象外」を表示する
+//   未完了の欄は枠を強調し、完了した欄は「完了」の印を付けて落ち着いた表示にする。上に進み具合の帯を出す
+function stepStates(){
+  var a = C.app, ap = latestAppraisal(), ended = ['cancelled','returned'].indexOf(a.status) >= 0;
+  var sale = C.contracts.filter(function(k){ return k.kind === 'sale' && k.status !== 'void'; }), saleDone = sale.some(function(k){ return k.status === 'signed'; });
+  var agentCase = a.applicant_role === 'agent' || C.mandates.length > 0;
+  var S_ = function(st, note){ return { st: st, note: note || '' }; };
+  return [
+    ['s-sum', '受付・担当', (a.handler_ids || []).length ? S_('done', '担当者を決めました') : ['paid','closed','cancelled','returned'].indexOf(a.status) >= 0 ? S_('na', '担当者の指定なし') : S_('todo', '担当者を選んで「更新」')],
+    ['s-mandate', '代理（委任）', !agentCase ? S_('na', '代理の方はいません') : C.mandates.some(function(m){ return m.seller_signed_at && !m.revoked_at && m.agent_identity_checked; }) ? S_('done', '委任状の署名と代理の方の本人確認が済んでいます') : C.mandates.some(function(m){ return !m.seller_signed_at && !m.revoked_at; }) ? S_('wait', '売主ご本人の署名待ち') : S_('todo', '委任状の作成・代理の方の本人確認')],
+    ['s-idc', '本人確認', C.idc.some(function(x){ return x.subject === 'seller' || x.subject === 'corporate_staff'; }) ? S_('done', '記録済み') : (C.idr || []).length ? S_('todo', 'お客様の申告が届いています。確認して記録') : S_('wait', 'お客様の申告待ち')],
+    ['s-cust', '売主の名義', (C.cust.verified_name) ? S_('done', '確認済みの名義を登録済み') : (C.idc.length ? S_('todo', '確認済みの名義を保存') : S_('later', '本人確認のあと'))],
+    ['s-pick', '集荷・受領', C.pickups.some(function(x){ return x.received_at; }) ? S_('done', 'お品物を受け取りました') : C.pickups.length ? S_('wait', '配送中・受領待ち') : ended ? S_('na') : S_('todo', '集荷の手配')],
+    ['s-items', '商品と査定', ap && ap.status === 'answered' ? S_('done', 'お客様の回答済み') : ap && ap.status === 'notified' ? S_('wait', 'お客様の回答待ち') : ended && !ap ? S_('na') : (C.pickups.some(function(x){ return x.received_at; }) || C.items.length ? S_('todo', C.items.length ? '査定額を入れて通知' : '商品の登録') : S_('later', 'お品物の受領後'))],
+    ['s-ctr', '契約', saleDone ? S_('done', '売買契約が成立しました') : sale.length ? S_('wait', '署名待ち') : ended || (ap && ap.status === 'answered' && !approvedLines(ap).length) ? S_('na', '売却のお品物はありません') : S_('later', '査定の回答後')],
+    ['s-pay', '振込', C.payments.some(function(p){ return p.status === 'paid'; }) ? S_('done', '振込済み・お礼のメール送信済み') : !saleDone ? (ended ? S_('na') : S_('later', '契約の成立後')) : S_('todo', C.payments.some(function(p){ return p.status === 'approved'; }) ? '銀行で振り込み、「振込を実行した」を押す' : '振込の作成・承認')],
+    ['s-ret', '返却', !needReturn() && !C.returns.length ? S_('na', '返却はありません') : C.returns.length && C.returns.every(function(x){ return x.delivered_at; }) ? S_('done', '返却が届きました') : C.returns.some(function(x){ return x.shipped_at; }) ? S_('wait', '配送中') : S_('todo', '返却の手配')]
+  ];
+}
+function markSteps(){
+  var L = { done: '完了', todo: '未完了', wait: 'お客様・配送待ち', later: 'これから', na: '対象外' }, n = 0, strip = [];
+  stepStates().forEach(function(x){
+    var sec = document.getElementById(x[0]); if(!sec) return; n++;
+    var num = '①②③④⑤⑥⑦⑧⑨⑩'.charAt(n - 1) || n, st = x[2].st;
+    sec.classList.add('step', 'st-' + st);
+    var h = sec.querySelector('header h2'); if(h) h.innerHTML = '<span class="stepno">' + num + '</span>' + h.innerHTML;
+    var hd = sec.querySelector('header'); if(hd){ var b = document.createElement('span'); b.className = 'stepst ' + st; b.textContent = (st === 'done' ? '✓ ' : st === 'todo' ? '● ' : '') + L[st] + (x[2].note ? '：' + x[2].note : ''); hd.insertBefore(b, hd.children[1] || null); }
+    strip.push('<button type="button" class="sp ' + st + '" data-jump="' + x[0] + '" title="' + esc(L[st] + (x[2].note ? '：' + x[2].note : '')) + '"><b>' + num + '</b>' + esc(x[1]) + '<i>' + (st === 'done' ? '✓ 完了' : st === 'todo' ? '未完了' : st === 'wait' ? '待ち' : st === 'later' ? 'これから' : '—') + '</i></button>');
+  });
+  var todo = document.querySelector('#main .todo'); if(!strip.length || !todo) return;
+  var d = document.createElement('div'); d.className = 'stepbar'; d.setAttribute('aria-label', '手続きの進み具合'); d.innerHTML = strip.join(''); todo.parentNode.insertBefore(d, todo);
+}
 function needReturn(){
   var a = C.app;
   if(['declined','return_scheduled','returning'].indexOf(a.status) >= 0) return true;
@@ -396,6 +428,7 @@ async function viewCase(id){ var my = S.seq;
   if(can()) html += card('s-view', '閲覧の記録', 'いつ・何を見たか（新しい順・最大50件）。書き換え・削除はできません', (C.views || []).length ? '<ul class="timeline">' + C.views.map(function(v){ return '<li>' + dt(v.viewed_at) + '<span>' + esc(VIEWK[v.kind] || v.kind) + (v.detail ? '（' + esc(v.detail) + '）' : '') + '</span></li>'; }).join('') + '</ul>' : '<p class="empty">記録はありません</p>');
   html += '</div></div>';
   if(my !== S.seq) return; $('#main').innerHTML = html;
+  markSteps();
   document.querySelectorAll('[data-jump]').forEach(function(x){ x.onclick = function(){ var s = document.getElementById(x.dataset.jump); if(s){ s.scrollIntoView({ behavior: 'smooth', block: 'start' }); var d = s.querySelector('details'); if(d && !d.open && x.dataset.jump !== 's-req') d.open = true; } }; });
   var kk = $('#kk-no'), kt = $('#kk-track'); if(kk && kt) kk.addEventListener('input', function(){ var v = kk.value.replace(/[^0-9]/g, ''); kt.href = v.length >= 11 ? 'https://trackings.post.japanpost.jp/services/srv/search/direct?reqCodeNo1=' + v + '&searchKind=S002&locale=ja' : 'https://trackings.post.japanpost.jp/services/srv/search/'; });
   bindCase();
@@ -542,7 +575,7 @@ function askFirst(b, text){
   box.querySelectorAll('button')[0].onclick = function(){ box.remove(); b.hidden = false; b.dataset.sure = '1'; b.click(); };
   box.querySelectorAll('button')[1].onclick = function(){ box.remove(); b.hidden = false; };
 }
-var ASK = { nda: '定型の秘密保持契約書を作成し、当社（株式会社グローブ・株式会社マネージメントアドバイザーズ）としてあなたの名前で署名します。お客様へ署名のお願いが届きます。', notify: 'お客様へ査定結果を通知します。通知後は金額を変更できません。「グローブとして申込みをする担当者」を選んで通知すると、株式会社グローブ（買主）の申込みとして記録され、お客様はお手続き画面のチェックと電子署名だけで売買契約まで完了できます。', buyersign: '株式会社グローブを代表して売買契約に署名します。', paid: '銀行での振込を実行したことを記録します。お客様へ振込完了を通知します。', agentok: '代理人の本人確認が記録済みであることを確認しました。', newap: '新しい版の査定を作成します。通知済みの査定は取り下げになります。' };
+var ASK = { nda: '定型の秘密保持契約書を作成し、当社（株式会社グローブ・株式会社マネージメントアドバイザーズ）としてあなたの名前で署名します。お客様へ署名のお願いが届きます。', notify: 'お客様へ査定結果を通知します。通知後は金額を変更できません。「グローブとして申込みをする担当者」を選んで通知すると、株式会社グローブ（買主）の申込みとして記録され、お客様はお手続き画面のチェックと電子署名だけで売買契約まで完了できます。', buyersign: '株式会社グローブを代表して売買契約に署名します。', paid: '銀行での振込を実行したことを記録します。記録すると、お客様へ「お振込み完了のご報告とお礼」のメールが自動で届きます。', agentok: '代理人の本人確認が記録済みであることを確認しました。', newap: '新しい版の査定を作成します。通知済みの査定は取り下げになります。' };
 var FORMS = {
   status: async function(d){ var h = Object.keys(d).filter(function(k){ return /^h_/.test(k) && d[k] === true; }).map(function(k){ return k.slice(2); }); var added = h.filter(function(x){ return (C.app.handler_ids || []).indexOf(x) < 0; }); await GL.update('applications', { id: C.app.id }, { status: d.status, handler_ids: h }); return added.length && ['closed','cancelled','returned','paid'].indexOf(d.status) < 0 ? '更新しました。お客様へ担当者（' + added.map(nameOf).join('・') + '）からのあいさつのメールを送りました' : '更新しました'; },
   cust: function(d){ return GL.update('customers', { id: C.cust.id }, { kind: d.kind, name: d.name, email: (d.email || '').toLowerCase() || null, tel: d.tel || null, verified_name: d.verified_name || null, verified_kana: d.verified_kana || null }); },
@@ -603,7 +636,7 @@ var ACTS = {
   intact: async function(id){ var ok = await GL.rpc('contract_intact', { p_contract: id }); if(!ok) throw new Error('改ざんの疑いがあります。本文または署名時の内容が一致しません'); return '改ざんは検出されませんでした'; },
   buyersign: async function(id){ var el = $('#bn-' + id), on = el ? el.value : ''; await GL.rpc('staff_sign_contract', { p_contract: id, p_name: on || null }); return '株式会社グローブ（買主）として署名しました' + (on ? '（' + nameOf(on) + 'さん）' : ''); },
   nda: async function(){ await GL.rpc('staff_create_nda', { p_application: C.app.id }); return '秘密保持契約を作成し、お客様へ署名をお願いしました'; },
-  paid: async function(id){ await GL.rpc('staff_mark_paid', { p_payment: id }); return '振込を記録しました'; },
+  paid: async function(id){ await GL.rpc('staff_mark_paid', { p_payment: id }); return '振込を記録しました。お客様へ「お振込み完了のご報告とお礼」のメールを送りました'; },
   shipped: function(id){ return GL.update('returns', { id: id }, { shipped_at: new Date().toISOString() }); },
   delivered: async function(id){ await GL.update('returns', { id: id }, { delivered_at: new Date().toISOString() }); }
 };

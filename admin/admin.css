@@ -167,3 +167,26 @@ a.src{display:block;font-size:11px;color:var(--gold);margin-top:2px}
 .hchk{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px}
 .hchk label{display:inline-flex;align-items:center;gap:4px;font-size:14px;cursor:pointer}
 .hchk small{color:var(--gold,#c8ae7d)}
+
+/* 案件の画面：手続きの番号と状態（完了・未完了・待ち・対象外） */
+.stepbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:6px;margin:0 0 14px}
+.stepbar .sp{display:grid;gap:2px;text-align:left;padding:8px 10px;border-radius:6px;border:1px solid var(--line2,#444);background:var(--panel,#1a1a1a);color:inherit;font:inherit;font-size:13px;cursor:pointer;line-height:1.35}
+.stepbar .sp b{font-size:16px}
+.stepbar .sp i{font-style:normal;font-size:12px;font-weight:700}
+.stepbar .sp.done{border-color:var(--ok,#6fbf73);background:rgba(111,191,115,.12)}.stepbar .sp.done i{color:var(--ok,#6fbf73)}
+.stepbar .sp.todo{border:2px solid var(--bad,#e5534b);background:rgba(229,83,75,.12)}.stepbar .sp.todo i{color:var(--bad,#e5534b)}
+.stepbar .sp.wait{border-color:var(--info,#58a6ff);background:rgba(88,166,255,.10)}.stepbar .sp.wait i{color:var(--info,#58a6ff)}
+.stepbar .sp.na{opacity:.5}
+.stepbar .sp.later{opacity:.75}.stepbar .sp.later i{color:var(--mute,#888)}
+.card .stepno{display:inline-grid;place-items:center;min-width:26px;height:26px;margin-right:8px;border-radius:50%;background:var(--gold,#c8ae7d);color:#111;font-size:15px;font-weight:700;vertical-align:middle}
+.card.step>header h2{font-size:16px}
+.stepst{font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;white-space:normal}
+.stepst.done{color:var(--ok,#6fbf73);border:1px solid var(--ok,#6fbf73);background:rgba(111,191,115,.1)}
+.stepst.todo{color:#fff;background:var(--bad,#e5534b)}
+.stepst.wait{color:var(--info,#58a6ff);border:1px solid var(--info,#58a6ff)}
+.stepst.na,.stepst.later{color:var(--mute,#888);border:1px solid var(--line2,#444)}
+.card.st-todo{border:2px solid var(--bad,#e5534b);box-shadow:0 0 0 3px rgba(229,83,75,.12)}
+.card.st-todo>header{background:rgba(229,83,75,.08)}
+.card.st-done{border-color:var(--ok,#6fbf73)}
+.card.st-done>header{background:rgba(111,191,115,.07)}
+.card.st-na>.in{opacity:.6}
