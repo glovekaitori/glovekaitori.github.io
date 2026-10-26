@@ -14,22 +14,59 @@
   function syncRole(){
     var r=form.querySelector('input[name=role]:checked');
     document.getElementById('agentBox').hidden=!(r&&r.value!=='本人');
+    if(typeof renumber==='function')renumber();
   }
   form.querySelectorAll('input[name=role]').forEach(function(x){x.addEventListener('change',syncRole)});
-  syncRole();
 
-  // 写真（任意）：この端末内で縮小表示するだけ。送信は受付システム接続後
-  var pin=document.getElementById('photos'),th=document.getElementById('thumbs'),perr=document.getElementById('photoErr');
+  // 写真（任意）：何回かに分けて選べる。1枚ずつ外せる。お申込みと同時に送信
+  var pin=document.getElementById('photos'),th=document.getElementById('thumbs'),perr=document.getElementById('photoErr'),pcount=document.getElementById('photoCount');
+  function drawPhotos(){
+    th.innerHTML='';
+    photos.forEach(function(f,i){
+      var w=document.createElement('span');w.className='thumb';
+      var im=document.createElement('img');im.alt='選んだ写真'+(i+1);im.src=URL.createObjectURL(f);w.appendChild(im);
+      var x=document.createElement('button');x.type='button';x.className='thumb-x';x.setAttribute('aria-label','この写真を外す');x.textContent='×';
+      x.onclick=function(){photos.splice(i,1);drawPhotos();};w.appendChild(x);th.appendChild(w);
+    });
+    pcount.hidden=!photos.length;pcount.textContent=photos.length?'選んだ写真：'+photos.length+'枚（あと'+Math.max(0,C.maxPhotos-photos.length)+'枚まで追加できます）':'';
+    var nb=form.querySelector('[data-none=photos]');if(nb&&photos.length){nb.checked=false;}
+    document.querySelector('.photo-drop .pd-main').textContent=photos.length?'写真を追加する':'写真を撮る・選ぶ';
+  }
   pin.addEventListener('change',function(){
-    perr.textContent='';photos=[];th.innerHTML='';
-    var fs=Array.prototype.slice.call(pin.files||[]);
-    if(fs.length>C.maxPhotos){perr.textContent='写真は'+C.maxPhotos+'枚までです。';fs=fs.slice(0,C.maxPhotos);}
-    fs.forEach(function(f){
+    perr.textContent='';
+    Array.prototype.slice.call(pin.files||[]).forEach(function(f){
+      if(photos.length>=C.maxPhotos){perr.textContent='写真は'+C.maxPhotos+'枚までです。';return;}
       if(!/^image\//.test(f.type)){perr.textContent='画像ファイルを選んでください。';return;}
       if(f.size>C.maxPhotoMB*1048576){perr.textContent='1枚あたり'+C.maxPhotoMB+'MBまでです。';return;}
-      photos.push(f);var im=document.createElement('img');im.alt='選択した写真';im.src=URL.createObjectURL(f);th.appendChild(im);
+      photos.push(f);
     });
+    pin.value='';drawPhotos();
   });
+
+  // 任意の項目：「なし」にチェックすると入力欄を閉じる。入力を始めるとチェックを外す
+  form.querySelectorAll('[data-none]').forEach(function(cb){
+    var k=cb.dataset.none,inp=document.getElementById(k);
+    cb.addEventListener('change',function(){
+      if(k==='photos'){if(cb.checked){photos=[];drawPhotos();cb.checked=true;}}
+      else if(inp){if(cb.checked)inp.value='';inp.disabled=cb.checked;}
+      var er=document.getElementById('err-'+k);if(er&&cb.checked)er.textContent='';
+    });
+    if(inp&&k!=='photos')inp.addEventListener('input',function(){if(inp.value.trim())cb.checked=false;});
+  });
+  function isNone(k){var cb=form.querySelector('[data-none='+k+']');return !!(cb&&cb.checked);}
+
+  // 項目に通し番号を付ける（表示されている項目だけ）
+  function renumber(){
+    var n=0;
+    form.querySelectorAll('fieldset[data-step] .field').forEach(function(f){
+      var box=f.closest('#agentBox');var vis=!(box&&box.hidden);
+      var lb=f.querySelector(':scope > label[for], :scope > .lbl');if(!lb)return;
+      var no=lb.querySelector('.fno');
+      if(!vis){if(no)no.remove();return;}
+      n++;if(!no){no=document.createElement('span');no.className='fno';lb.insertBefore(no,lb.firstChild);}
+      no.textContent=n;
+    });
+  }
 
   function val(n){var e=form.elements[n];if(!e)return'';if(e.length&&e[0]&&e[0].type==='radio'){var c=form.querySelector('input[name='+n+']:checked');return c?c.value:'';}return (e.value||'').trim();}
   function vals(n){return Array.prototype.map.call(form.querySelectorAll('input[name='+n+']:checked'),function(x){return x.value});}
@@ -43,7 +80,7 @@
       wish:val('wish'), note:val('note')
     };
   }
-  var labels=[['role','申込者区分'],['name','お名前・法人名'],['agentOrg','ご所属'],['relation','売主様との関係'],['tel','電話番号'],['email','メールアドレス'],['contactWay','ご希望の連絡方法'],['code','紹介コード'],['categories','お品物の種類'],['summary','お品物の概要'],['qty','おおよその点数'],['photoCount','写真'],['pref','集荷希望地（都道府県）'],['city','集荷希望地（市区町村）'],['handover','お品物をお渡しになる方'],['pickupWay','ご希望の集荷方法'],['wish','ご希望の日時'],['note','その他のご要望']];
+  var labels=[['photoCount','写真'],['categories','お品物の種類'],['summary','お品物の概要'],['qty','おおよその点数'],['role','申込者区分'],['name','お名前・法人名'],['agentOrg','ご所属'],['relation','売主様との関係'],['email','メールアドレス'],['contactWay','ご希望の連絡方法'],['tel','電話番号'],['code','紹介コード'],['pref','集荷希望地（都道府県）'],['city','集荷希望地（市区町村）'],['handover','お品物をお渡しになる方'],['pickupWay','ご希望の集荷方法'],['wish','ご希望の日時'],['note','その他のご要望']];
 
   function check(d){
     var e={};
@@ -53,6 +90,16 @@
     else if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email))e.email='メールアドレスの形式をご確認ください。';
     if(d.tel&&!/^[0-9\-+() ]{10,16}$/.test(d.tel))e.tel='電話番号は数字とハイフンで入力してください。';
     if(!d.contactWay)e.contactWay='ご希望の連絡方法を選んでください。';
+    if((d.contactWay==='電話'||d.contactWay==='ショートメッセージ')&&!d.tel)e.tel='「'+d.contactWay+'」でのご連絡には、電話番号が必要です。';
+    if(!d.qty)e.qty='おおよその点数を選んでください（わからない場合は「わからない」）。';
+    if(!d.handover)e.handover='お品物をお渡しになる方を選んでください（決まっていない場合は「未定」）。';
+    if(!d.pickupWay)e.pickupWay='ご希望の集荷方法を選んでください（迷う場合は「相談して決めたい」）。';
+    var NONE={photos:['写真を選ぶか、「写真は送らない」','photoCount'],summary:['概要を入力するか、「わからない・書かない」','summary'],agentOrg:['ご所属を入力するか、「なし・書かない」','agentOrg'],relation:['ご関係を入力するか、「書かない」','relation'],tel:['電話番号を入力するか、「電話番号は伝えない」','tel'],code:['紹介コードを入力するか、「紹介コードなし」','code'],city:['市区町村を入力するか、「書かない」','city'],wish:['ご希望を入力するか、「特になし」','wish'],note:['ご要望を入力するか、「特になし」','note']};
+    Object.keys(NONE).forEach(function(k){
+      if((k==='agentOrg'||k==='relation')&&d.role==='本人')return;
+      if(e[k])return;
+      var v=d[NONE[k][1]];if(!v&&!isNone(k))e[k]=NONE[k][0]+'にチェックしてください。';
+    });
     if(!d.categories.length)e.cat='お品物の種類を1つ以上選んでください。';
     if(!d.pref)e.pref='集荷希望地の都道府県を選んでください。';
     if(!form.adult.checked)e.agree='売主が18歳以上であることをご確認ください。';
@@ -74,7 +121,7 @@
 
   // ── 4段階の入力（1画面に1つずつ） ──
   var sets=Array.prototype.slice.call(form.querySelectorAll('fieldset[data-step]')),final=form.querySelector('[data-final]'),step=1;
-  var STEPKEYS={1:['role','name'],2:['email','tel','contactWay'],3:['cat'],4:['pref','agree']};
+  var STEPKEYS={1:['photos','cat','summary','qty'],2:['role','name','agentOrg','relation'],3:['email','contactWay','tel','code'],4:['pref','city','handover','pickupWay','wish','note','agree']};
   var bar=document.createElement('div');bar.className='wstep';bar.setAttribute('aria-live','polite');form.insertBefore(bar,form.firstChild);
   sets.forEach(function(fs,i){
     var nav=document.createElement('div');nav.className='btns wnav';
@@ -90,7 +137,7 @@
     window.gloveTop(bar);
     var lg=sets[step-1].querySelector('legend');if(lg&&step>1){lg.setAttribute('tabindex','-1');try{lg.focus({preventScroll:true});}catch(x){lg.focus();}}
   }
-  function stepErrors(n,e){var o={};(STEPKEYS[n]||[]).forEach(function(k){if(e[k])o[k]=e[k];});if(n===2&&e.email)o.email=e.email;return o;}
+  function stepErrors(n,e){var o={};(STEPKEYS[n]||[]).forEach(function(k){if(e[k])o[k]=e[k];});if(n===3&&e.email)o.email=e.email;return o;}
   function next(){
     var e=stepErrors(step,check(collect()));
     if(step===4)delete e.agree;
@@ -99,6 +146,7 @@
     if(Object.keys(e).length){var f=document.getElementById('err-'+Object.keys(e)[0]);if(f)f.scrollIntoView({block:'center'});return;}
     show(step+1);
   }
+  syncRole();renumber();
   show(1);
 
   var current=null;
@@ -115,7 +163,7 @@
       if(Array.isArray(v))v=v.join('、');
       if(!v&&(p[0]==='agentOrg'||p[0]==='relation')&&d.role==='本人')return;
       var tr=document.createElement('tr'),th=document.createElement('th'),td=document.createElement('td');
-      th.textContent=p[1];td.textContent=v||'（未入力）';tr.appendChild(th);tr.appendChild(td);tb.appendChild(tr);
+      th.textContent=p[1];td.textContent=v||(isNone(p[0]==='photoCount'?'photos':p[0])?'なし':'（未入力）');tr.appendChild(th);tr.appendChild(td);tb.appendChild(tr);
     });
     go(2);
   });
@@ -146,7 +194,7 @@
       }
       document.getElementById('doneDirect').hidden=!direct; document.getElementById('doneMail').hidden=direct;
       b.disabled=false;b.textContent='この内容で申し込む';
-      form.reset();th.innerHTML='';photos=[];current=null;show(1);go(3);
+      form.reset();form.querySelectorAll('input:disabled,textarea:disabled').forEach(function(x){x.disabled=false;});photos=[];drawPhotos();current=null;show(1);go(3);
     }else{
       b.disabled=false;b.textContent='この内容で申し込む';
       document.getElementById('failReason').textContent=

@@ -653,3 +653,20 @@ body.hp-typing .hp-btn{opacity:0;pointer-events:none;transition:opacity .2s}
 .telbox .hint{margin:8px 0 0}
 .ft-tel{margin-top:10px}
 .ft-tel a{color:var(--gold-hi);text-decoration:none;letter-spacing:.06em}
+/* 申込み：写真の選択を大きく分かりやすく */
+.sr-file{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0)}
+.photo-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:150px;margin:10px 0 8px;padding:22px 16px;border:2px dashed var(--gold);background:rgba(200,174,125,.07);color:var(--on-dark);text-align:center;cursor:pointer;border-radius:6px}
+.photo-drop:hover,.sr-file:focus-visible + .photo-drop{background:rgba(200,174,125,.14)}
+.photo-drop .pd-icon{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;background:var(--gold);color:var(--black);font-size:2rem;line-height:1}
+.photo-drop .pd-main{font-size:1.15rem;letter-spacing:.06em;color:var(--gold-hi)}
+.photo-drop .pd-sub{font-size:.8rem;color:var(--on-dark-mute)}
+.pd-count{margin:6px 0;color:var(--gold-hi)}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px}
+.thumb{position:relative;display:inline-block}
+.thumb img{width:84px;height:84px;object-fit:cover;border:1px solid var(--gold-line)}
+.thumb-x{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;border:0;background:#222;color:#fff;font-size:1rem;line-height:28px;cursor:pointer}
+/* 任意の項目：「なし」にチェック */
+.none-chk{display:inline-flex;align-items:center;gap:8px;margin-top:8px;font-size:.88rem;color:var(--on-dark-mute);cursor:pointer}
+.none-chk input{width:20px;height:20px}
+/* 項目の通し番号 */
+.fno{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;margin-right:8px;padding:0 6px;border-radius:12px;background:var(--gold);color:var(--black);font-size:.8rem;font-weight:500;vertical-align:middle}
