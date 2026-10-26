@@ -22,7 +22,7 @@
 <body data-page="apply">
 <a class="skip" href="#main">本文へ移動</a>
 
-<div class="util"><div class="wrap"><span>完全予約制・非対面の買取専門店</span><span>受付：<b id="sysState">準備中</b><span id="sysNote">（現在お申込みは送信されません）</span></span></div></div>
+<div class="util"><div class="wrap"><span>完全紹介制・非対面の買取専門店</span><span>受付：<b id="sysState">受付中</b><span id="sysNote"></span></span></div></div>
 <header class="hd"><div class="wrap hd-in">
 <a class="brand" href="../"><svg class="ic brand-mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3 28 16 16 29 4 16z"/><path class="ac" d="M16 8.5 23.5 16 16 23.5 8.5 16z"/><path d="M4 16h24M16 3v26" opacity=".35"/></svg><span><b>G-LOVE</b><small>買取専門店　秘密厳守の非対面買取</small></span></a>
 <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="gnav" aria-label="メニュー"><svg class="ic" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h22M5 16h22M5 22h22"/></svg><span>メニュー</span></button>
@@ -41,7 +41,7 @@
 <div aria-hidden="true" style="position:absolute;left:-9999px"><label for="website">空欄のままにしてください</label><input type="text" id="website" name="website" tabindex="-1" autocomplete="off"></div>
 <fieldset class="fs-block" data-step="1" data-title="お申込みの方"><legend>お申込みの方</legend><p class="step-hint">どなたがお申し込みになるかを選んでください。</p>
 <div class="field"><span class="lbl" id="lbl-role">申込者区分<span class="req">必須</span></span><div class="choices" role="radiogroup" aria-labelledby="lbl-role" aria-describedby="err-role"><label><input type="radio" name="role" value="本人">本人</label><label><input type="radio" name="role" value="代理人">代理人</label><label><input type="radio" name="role" value="法人担当者">法人担当者</label></div><p class="err" id="err-role"></p></div>
-<div class="field"><label for="name">お名前または法人名<span class="req">必須</span></label><input type="text" id="name" name="name" autocomplete="name"><p class="hint">代理人の方は、ご自身のお名前を入力してください。売主様のお名前は担当者から改めて伺います。</p><p class="err" id="err-name"></p></div>
+<div class="field"><label for="name">お名前または法人名<span class="req">必須</span></label><input type="text" id="name" name="name" autocomplete="name"><p class="hint">代理人の方は、ご自身のお名前を入力してください。売主様のお名前は、お申込みの後にお手続き画面で委任状を作成するときに入力します。法人担当者の方は、法人名を入力してください。</p><p class="err" id="err-name"></p></div>
 <div id="agentBox" hidden>
 <div class="field"><label for="agentOrg">ご所属（事務所名など）<span class="opt">任意</span></label><input type="text" id="agentOrg" name="agentOrg" autocomplete="organization"></div>
 <div class="field" style="margin-top:20px"><label for="relation">売主様とのご関係<span class="opt">任意</span></label><input type="text" id="relation" name="relation" placeholder="例：担当マネージャー"></div>
@@ -68,12 +68,12 @@
 <div class="field"><label for="note">その他のご要望<span class="opt">任意</span></label><textarea id="note" name="note" placeholder="例：送り状の差出人名について相談したい"></textarea></div>
 </fieldset>
 <div data-final>
-<details class="privacy-box"><summary>利用規約（大切な点）を読む</summary><ol class="tk-list"><li><b>売るかどうかは、品物ごとにご自身で決められます</b><br><small>お返事がないことを承認とは扱いません。売らない品物は当社の負担でお返しします（第13条・第19条）</small></li><li><b>ご本人確認が済んでから契約します</b><br><small>古物営業法に基づき、非対面の方法で確認します（第6条）</small></li><li><b>契約はお手続き画面で完結します</b><br><small>確認の項目にチェックを入れ、電子署名すると成立します（第13条）</small></li><li><b>盗品・偽造品と判明したら、代金をお返しいただきます</b><br><small>事情を知らなかった場合も同様です。盗品は被害者へお返しし、警察に協力します（第15条・第16条）</small></li><li><b>代金はご本人名義の口座へお振込みします</b><br><small>名義が違う場合は確認してからのお支払いです（第17条）</small></li></ol><p class="hint">全文は<a href="../terms/">利用規約のページ</a>でご確認いただけます（入力中の内容は、このページを離れると消えます）。</p></details>
+<details class="privacy-box"><summary>利用規約（大切な点）を読む</summary><ol class="tk-list"><li><b>売るかどうかは、品物ごとにご自身で決められます</b><br><small>お返事がないことを承認とは扱いません。売らない品物は当社の負担でお返しします（第13条・第19条）</small></li><li><b>ご本人確認が済んでから契約します</b><br><small>古物営業法に基づき、非対面の方法で確認します（第6条）</small></li><li><b>契約はお手続き画面で完結します</b><br><small>確認の項目にチェックを入れ、電子署名すると成立します（第13条）</small></li><li><b>盗品・偽造品と判明したら、代金をお返しいただきます</b><br><small>事情を知らなかった場合も同様です。盗品は被害者へお返しし、警察に協力します（第15条・第16条）</small></li><li><b>代金はご本人（法人の場合は法人）名義の口座へお振込みします</b><br><small>名義が違う場合は確認してからのお支払いです（第17条）</small></li></ol><p class="hint">全文は<a href="../terms/">利用規約のページ</a>でご確認いただけます（入力中の内容は、このページを離れると消えます）。</p></details>
 <details class="privacy-box"><summary>個人情報保護方針（要点）を読む</summary><ul>
 <li>お申込み・ご本人確認・お取引・お支払いのために必要な情報だけをお預かりします。</li>
 <li>情報は、受付を担う株式会社マネージメントアドバイザーズと、買主である株式会社グローブの二社で共同利用します。</li>
 <li>お名前・ご連絡先・取引の内容は、法令に基づく場合を除き、第三者には提供しません。お名前や取引の事実を宣伝に使うことはありません。</li><li>お品物の写真は、撮影場所などの情報を消し、お名前を付けずに、AIによる鑑定の補助のため Google（米国）に送ります。Google のサービス改善に使われる場合があります（利用規約 第22条の2）。</li>
-<li>閲覧できる担当者を役割ごとに限り、二段階認証・操作記録・暗号化で守ります。メールの本文にお名前・お品物・金額は書きません。</li>
+<li>閲覧できるのは当社の担当者に限り、いつ・何を見たか、何を変えたかを記録し、通信と保管を暗号化して守ります。メールの本文にお名前・お品物・金額は書きません。</li>
 <li>古物営業法により、取引の記録は3年間保存します。</li>
 </ul><p class="hint">全文は<a href="../privacy/">個人情報保護方針のページ</a>でご確認いただけます（入力中の内容は、このページを離れると消えます）。</p></details>
 <div class="field decl" role="group" aria-label="確認と同意" aria-describedby="err-agree"><label><input type="checkbox" id="adult" name="adult"><span>売主（お品物の持ち主）は18歳以上です</span></label><label><input type="checkbox" id="noAntisocial" name="noAntisocial"><span>私と売主は、暴力団などの反社会的勢力に当たりません</span></label><label><input type="checkbox" id="agree" name="agree"><span>利用規約と個人情報の取扱いに同意します（お品物の写真を、AIによる鑑定の補助のため Google〔米国〕へ提供することを含みます。利用規約 第22条の2）</span></label><p class="err" id="err-agree"></p></div>
@@ -90,7 +90,7 @@
 </main>
 <footer class="ft"><div class="wrap">
 <div class="ft-top">
-<div class="ft-brand"><b>G-LOVE</b><p>大切なお品物を、人目に触れずに、正しく評価する。<br>完全予約制・非対面の買取専門店です。</p></div>
+<div class="ft-brand"><b>G-LOVE</b><p>大切なお品物を、人目に触れずに、正しく評価する。<br>完全紹介制・非対面。秘匿性を重視し、ご要望に応じて最適な買取を行います。</p><p class="ft-tel">お電話でのお問い合わせ　<a href="tel:0120933496">0120-933-496</a></p></div>
 <nav class="ft-links" aria-label="サイトの案内"><a href="../guide/">ご利用ガイド</a><a href="../about/">G-LOVEについて</a><a href="../items/">買取品目</a><a href="../agent/">代理の方へ</a><a href="../confidentiality/">秘密保持</a><a href="../faq/">よくある質問</a><a href="../status/">お手続き</a><a href="../reasons/">選ばれる理由</a><a href="../flow/">ご利用の流れ</a><a href="../pickup/">全国集荷</a><a href="../contact/">お問い合わせ</a><a href="../invite/">紹介コードをお持ちの方</a><a href="../apply/">買取申込</a><a href="../privacy/">個人情報保護方針</a><a href="../terms/">利用規約</a><a href="../legal/">法令に基づく表示</a></nav>
 </div>
 <div class="ft-legal">
