@@ -290,8 +290,13 @@ function nameOf(id){ var n = (S.names || []).filter(function(x){ return x.id ===
 function handlersText(a){ return (a.handler_ids || []).map(nameOf).filter(Boolean).join('・'); }
 function card(id, title, hint, body){ return '<section class="card" id="' + id + '"><header><h2>' + title + '</h2>' + (hint ? '<span class="hint">' + hint + '</span>' : '') + '</header><div class="in">' + body + '</div></section>'; }
 
+// 閲覧の記録（いつ・何を見たか）。記録に失敗しても画面の表示は止めない
+function logView(kind, app, detail){ return GL.rpc('staff_log_view', { p_kind: kind, p_app: app || null, p_detail: detail || null }).catch(function(){}); }
+var VIEWK = { 'case':'案件を開いた', id_image:'身分証の画像を見た', contract:'契約書の本文を見た', sheet:'鑑定シートを開いた', backup:'バックアップを取り出した', case_list:'案件の一覧を見た' };
 async function viewCase(id){ var my = S.seq;
+  await logView('case', id);
   C = await loadCase(id);
+  C.views = can() ? await safe(GL.select('view_log', { application_id: 'eq.' + id, order: 'viewed_at.desc', limit: 50 })) : [];
   var a = C.app, cu = C.cust;
   var html = top('案件 <span class="mono">' + esc(a.receipt_no) + '</span> ' + pill(STATUS, a.status) + (a.trial ? ' <span class="pill warn">試験データ</span>' : ''), '<a class="btn sub sm" href="#cases">一覧へ</a>');
   html += nextTodo();
@@ -359,6 +364,7 @@ async function viewCase(id){ var my = S.seq;
     + '<form class="f" data-form="note"><textarea name="body" placeholder="連絡した内容・判断の理由など" required></textarea><div class="btns"><button class="btn sm">メモを残す</button></div></form>');
   html += card('s-hist', '通知とお客様側の操作', '', '<ul class="timeline">' + C.events.map(function(e){ return '<li>' + dt(e.at) + '<span>' + (e.actor_kind === 'agent' ? '代理人' : '売主') + '：' + esc(EVENT[e.kind] || e.kind) + '</span></li>'; }).join('')
     + C.notifs.map(function(n){ return '<li>' + dt(n.created_at) + '<span>通知「' + esc(NOTIF[n.kind] || n.kind) + '」→ ' + esc(n.to_addr) + '　' + (n.status === 'sent' ? '送信依頼済' : n.status === 'skipped' ? '未設定のため未送信' : n.status === 'failed' ? '失敗' : '待機') + '</span></li>'; }).join('') + '</ul>');
+  if(can()) html += card('s-view', '閲覧の記録', 'いつ・何を見たか（新しい順・最大50件）。書き換え・削除はできません', (C.views || []).length ? '<ul class="timeline">' + C.views.map(function(v){ return '<li>' + dt(v.viewed_at) + '<span>' + esc(VIEWK[v.kind] || v.kind) + (v.detail ? '（' + esc(v.detail) + '）' : '') + '</span></li>'; }).join('') + '</ul>' : '<p class="empty">記録はありません</p>');
   html += '</div></div>';
   if(my !== S.seq) return; $('#main').innerHTML = html;
   document.querySelectorAll('[data-jump]').forEach(function(x){ x.onclick = function(){ var s = document.getElementById(x.dataset.jump); if(s){ s.scrollIntoView({ behavior: 'smooth', block: 'start' }); var d = s.querySelector('details'); if(d && !d.open && x.dataset.jump !== 's-req') d.open = true; } }; });
@@ -487,7 +493,7 @@ function bindCase(){
   m.onclick = async function(e){
     var b = e.target.closest('[data-act]'); if(!b) return;
     var k = b.dataset.act;
-    if(k === 'view'){ var r = $('#doc-' + b.dataset.id); r.hidden = !r.hidden; return; }
+    if(k === 'view'){ var r = $('#doc-' + b.dataset.id); r.hidden = !r.hidden; if(!r.hidden){ var dk = C.contracts.filter(function(x){ return x.id === b.dataset.id; })[0]; logView('contract', C.app.id, dk ? CKIND[dk.kind] : ''); } return; }
     if(ASK[k] && !b.dataset.sure){ return askFirst(b, ASK[k]); }
     b.disabled = true;
     try{ var msg = await ACTS[k](b.dataset.id); toast(msg || '保存しました'); if(['intact','useidr','idimg','kakilabel'].indexOf(k) < 0) await viewCase(C.app.id); else b.disabled = false; }
@@ -544,7 +550,8 @@ var ACTS = {
     w.document.close(); return '印刷の画面を開きました。郵便局で「簡易書留・転送不要」で差し出し、受け取った番号を本人確認欄に入力してください';
   },
   idimg: async function(name){
-    var b = $('[data-act=idimg][data-id="' + name.replace(/"/g, '') + '"]'), u = await GL.signedUrl('idcopy', name);
+    var b = $('[data-act=idimg][data-id="' + name.replace(/"/g, '') + '"]'); await logView('id_image', C.app.id, b ? b.textContent.replace('を見る', '') : '');
+    var u = await GL.signedUrl('idcopy', name);
     if(b && !(b.nextElementSibling && b.nextElementSibling.tagName === 'IMG')){ var im = new Image(); im.alt = '身分証明書の画像'; im.src = u; im.style.cssText = 'display:block;max-width:100%;max-height:420px;margin:8px 0;border:1px solid var(--line)'; b.after(im); }
     return '身分証の画像を表示しました（この画像は査定・経理の担当者だけが見られます）';
   },
@@ -637,10 +644,13 @@ async function viewStaff(){ var my = S.seq;
 }
 var TBL = { applications:'申込', customers:'売主', mandates:'委任', identity_checks:'本人確認', pickups:'集荷', items:'商品', appraisals:'査定', appraisal_lines:'査定額', approvals:'承認', contracts:'契約', contract_signatures:'署名', bank_accounts:'口座', payments:'振込', returns:'返却', staff:'担当者', referral_codes:'紹介コード', application_notes:'メモ', contacts:'問い合わせ' };
 async function viewAudit(){ var my = S.seq;
-  var rows = await GL.select('audit_log', { order: 'id.desc', limit: 300 });
-  if(my !== S.seq) return; $('#main').innerHTML = top('操作履歴', '<span class="pill">最新300件</span>') + '<p class="note">誰が・いつ・何を変えたかの記録です。追記のみで、削除や書換えはできません。</p><div class="card"><div class="tw"><table><thead><tr><th>日時</th><th>操作した人</th><th>対象</th><th>操作</th><th>変わった項目</th></tr></thead><tbody>'
+  var rows = await GL.select('audit_log', { order: 'id.desc', limit: 300 }), views = await safe(GL.select('view_log', { order: 'id.desc', limit: 300 }));
+  if(my !== S.seq) return; $('#main').innerHTML = top('操作履歴', '<span class="pill">最新300件</span>') + '<p class="note">いつ・何を変えたかの記録です（担当者のログインは共通のため、担当者の欄は共通のアカウント名になります）。追記のみで、削除や書換えはできません。</p><div class="card"><div class="tw"><table><thead><tr><th>日時</th><th>操作した人</th><th>対象</th><th>操作</th><th>変わった項目</th></tr></thead><tbody>'
     + rows.map(function(r){ var ch = []; if(r.action === 'UPDATE' && r.before && r.after) Object.keys(r.after).forEach(function(k){ if(JSON.stringify(r.before[k]) !== JSON.stringify(r.after[k]) && k !== 'updated_at') ch.push(k); });
       return '<tr><td>' + dt(r.at) + '</td><td>' + (r.actor ? esc(staffName(r.actor)) === '—' ? 'お客様・代理人' : esc(staffName(r.actor)) : '受付フォーム・自動処理') + '</td><td>' + esc(TBL[r.table_name] || r.table_name) + '</td><td>' + ({ INSERT:'作成', UPDATE:'変更', DELETE:'削除' })[r.action] + '</td><td><small>' + esc(ch.join('、')) + '</small></td></tr>'; }).join('') + '</tbody></table></div></div>';
+  if(my !== S.seq) return;
+  $('#main').insertAdjacentHTML('beforeend', '<div class="card" style="margin-top:16px"><header><h2>閲覧の記録</h2><span class="hint">いつ・何を見たか（最新300件）。追記のみで、削除や書換えはできません</span></header><div class="in"><div class="tw"><table><thead><tr><th>日時</th><th>見たもの</th><th>受付番号</th><th>内容</th></tr></thead><tbody>'
+    + (views.length ? views.map(function(v){ return '<tr><td>' + dt(v.viewed_at) + '</td><td>' + esc(VIEWK[v.kind] || v.kind) + '</td><td class="mono">' + esc(v.receipt_no || '—') + '</td><td>' + esc(v.detail || '') + '</td></tr>'; }).join('') : '<tr><td colspan="4" class="empty">記録はありません</td></tr>') + '</tbody></table></div></div></div>');
 }
 
 async function viewAccount(){ var my = S.seq;
@@ -649,7 +659,7 @@ async function viewAccount(){ var my = S.seq;
     if(d.p1.length < 12) return er.textContent = '12文字以上にしてください'; if(d.p1 !== d.p2) return er.textContent = '2回の入力が一致しません';
     try{ await GL.setPassword(d.p1); e.target.reset(); toast('パスワードを変更しました'); }catch(x){ er.textContent = x.message; } });
 }
-var BK_TABLES = ['price_refs','support_faq','support_cat','resales','identity_requests','pickup_requests','return_requests','messages','support_threads','support_messages','staff','referral_codes','customers','applications','application_notes','contacts','mandates','identity_checks','pickups','items','appraisals','appraisal_lines','approvals','contracts','contract_signatures','bank_accounts','payments','returns','notifications','portal_events','audit_log'];
+var BK_TABLES = ['price_refs','support_faq','support_cat','resales','identity_requests','pickup_requests','return_requests','messages','support_threads','support_messages','staff','referral_codes','customers','applications','application_notes','contacts','mandates','identity_checks','pickups','items','appraisals','appraisal_lines','approvals','contracts','contract_signatures','bank_accounts','payments','returns','notifications','portal_events','audit_log','view_log'];
 async function viewBackup(){ var my = S.seq;
   if(my !== S.seq) return; $('#main').innerHTML = top('バックアップ') + '<div class="card" style="max-width:640px"><div class="in"><p>すべての記録を、合言葉で暗号化した1つのファイルにして、この端末に保存します。無料プランには自動の復元機能がないため、週に1回の保存をおすすめします。</p>'
     + '<p class="note">合言葉を忘れると復元できません。合言葉はファイルと別の場所に控えてください。写真を含めるとファイルが大きくなり、時間がかかります（目安：写真100枚で数十MB）。</p>'
@@ -693,7 +703,7 @@ async function viewBackup(){ var my = S.seq;
       var key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: 310000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
       var ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(out))));
       var hdr = enc.encode('GLOVEBK1'), blob = new Blob([hdr, salt, iv, ct], { type: 'application/octet-stream' });
-      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'g-love-backup-' + out.at.slice(0, 10) + '.glbak'; a.click();
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'g-love-backup-' + out.at.slice(0, 10) + '.glbak'; a.click(); logView('backup', null, 'すべての記録');
       var n = Object.keys(out.tables).reduce(function(s, k){ return s + out.tables[k].length; }, 0);
       toast('保存しました（' + n + '件の記録' + (d.photos ? '・写真' + nPhoto + '枚' : '') + '）'); e.target.reset();
     }catch(x){ er.textContent = x.message; }
@@ -1000,6 +1010,7 @@ function matchRefs(refs, D, rank){
 async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
   var a = (await GL.select('applications', { id: 'eq.' + appId }))[0]; if(!a) throw new Error('案件が見つかりません');
   var items = await safe(GL.select('items', { application_id: 'eq.' + appId, order: 'created_at.asc' })), it = items.filter(function(x){ return x.id === itemId; })[0] || null;
+  logView('sheet', appId, it ? it.description : '写真' + slot);
   var sheets = await safe(GL.select('appraisal_sheets', { application_id: 'eq.' + appId, order: 'version.desc', limit: 50 }));
   var autos = sheets.filter(function(x){ return x.source === 'auto'; });
   sheets = sheets.filter(function(x){ return (x.item_id || null) === (it ? it.id : null) && (it || (x.slot || 1) === slot); });
