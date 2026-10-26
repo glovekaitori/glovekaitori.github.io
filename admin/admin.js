@@ -103,11 +103,26 @@ async function start(){
   var beat = function(){ if(!document.hidden) GL.rpc('staff_heartbeat', {}).catch(function(){}); }; beat(); setInterval(beat, 30000);
   if(can('reception')){ var cnt = async function(){ if(document.hidden) return; try{ var t = await GL.select('support_threads', { select: 'id,last_customer_at,last_staff_at', status: 'eq.open', mode: 'eq.staff', limit: 500 });
       var n = t.filter(function(x){ return !x.last_staff_at || new Date(x.last_customer_at) > new Date(x.last_staff_at); }).length; S.waiting = n;
-      var a = document.querySelector('#nav a[href="#support"]'); if(a){ var b = a.querySelector('.cnt'); if(n && !b){ b = document.createElement('span'); b.className = 'cnt'; a.appendChild(b); } if(b){ if(n) b.textContent = n; else b.remove(); } }
-      document.title = (n ? '(' + n + ') ' : '') + 'G-LOVE 管理画面'; }catch(e){} }; cnt(); setInterval(cnt, 15000); }
+      setNavCount('support', n); }catch(e){} }; cnt(); setInterval(cnt, 15000); }
+  refreshBadges(); setInterval(refreshBadges, 60000);
 }
+function navCount(key){ return key === 'support' ? S.waiting : (S.badges || {})[key]; }
 function renderNav(cur){
-  $('#nav').innerHTML = NAV.filter(function(n){ return n[2](); }).map(function(n){ return '<a href="#' + n[0] + '" class="' + (cur === n[0] ? 'on' : '') + '">' + n[1] + (n[0] === 'support' && S.waiting ? '<span class="cnt">' + S.waiting + '</span>' : '') + '</a>'; }).join('');
+  $('#nav').innerHTML = NAV.filter(function(n){ return n[2](); }).map(function(n){ var c = navCount(n[0]); return '<a href="#' + n[0] + '" class="' + (cur === n[0] ? 'on' : '') + '">' + n[1] + (c ? '<span class="cnt" title="未対応">' + c + '</span>' : '') + '</a>'; }).join('');
+}
+// 未対応の件数をメニューに出す（1分ごとに更新）
+function setNavCount(key, n){
+  var a = document.querySelector('#nav a[href="#' + key + '"]'); if(!a) return;
+  var b = a.querySelector('.cnt'); if(n && !b){ b = document.createElement('span'); b.className = 'cnt'; b.title = '未対応'; a.appendChild(b); }
+  if(b){ if(n) b.textContent = n; else b.remove(); }
+}
+async function refreshBadges(){
+  if(document.hidden) return;
+  try{ var r = await GL.rpc('staff_badges', {}); if(!r) return; S.badges = r;
+    setNavCount('cases', r.cases); setNavCount('contacts', r.contacts); setNavCount('payments', r.payments);
+    var total = (r.cases || 0) + (r.contacts || 0) + (S.waiting || 0);
+    document.title = (total ? '(' + total + ') ' : '') + 'G-LOVE 管理画面';
+  }catch(e){}
 }
 function top(title, extra){ return '<div class="top"><div class="btns"><button class="btn sub sm menu-t" type="button" data-menu>メニュー</button><h1>' + title + '</h1></div><div class="btns">' + (extra || '') + '</div></div>'; }
 async function route(){
@@ -129,6 +144,7 @@ async function route(){
 
 // ============ 案件一覧 ============
 async function viewCases(){ var my = S.seq;
+  await refreshBadges();
   var apps = await GL.select('applications', { order: 'created_at.desc', limit: 500 });
   var ids = apps.map(function(a){ return a.customer_id; });
   var cust = ids.length ? await safe(GL.select('customers', { id: 'in.(' + ids.join(',') + ')' })) : [];
@@ -152,7 +168,7 @@ async function viewCases(){ var my = S.seq;
       return true;
     });
     $('#tb').innerHTML = rows.length ? rows.map(function(a){ var c = cm[a.customer_id] || {};
-      return '<tr class="click" data-id="' + a.id + '" tabindex="0"><td class="mono">' + esc(a.receipt_no) + (a.trial ? ' <span class="pill warn">試験</span>' : '') + (lastMsg[a.id] && lastMsg[a.id] !== 'staff' ? ' <span class="pill bad">要返信</span>' : '') + (reqs[a.id] && ['received','contacting','identity_pending','pickup_arranging'].indexOf(a.status) >= 0 ? ' <span class="pill gold">申告あり</span>' : '') + '</td><td>' + dt(a.created_at) + '</td><td>' + esc(a.applicant_name) + (a.agent_org ? '<br><small style="color:var(--mute)">' + esc(a.agent_org) + '</small>' : '') + '</td><td>' + esc(APPLICANT[a.applicant_role]) + '</td><td>' + esc(c.verified_name || c.name || '—') + '</td><td>' + esc((a.categories || []).join('、')) + '</td><td>' + esc(a.pref) + '</td><td>' + pill(STATUS, a.status) + '</td><td>' + esc(handlersText(a) || sm[a.assigned_to] || '—') + '</td></tr>'; }).join('')
+      return '<tr class="click" data-id="' + a.id + '" tabindex="0"><td class="mono">' + esc(a.receipt_no) + (a.trial ? ' <span class="pill warn">試験</span>' : '') + (((S.badges || {}).caseIds || []).indexOf(a.id) >= 0 ? ' <span class="pill bad">未対応</span>' : '') + (lastMsg[a.id] && lastMsg[a.id] !== 'staff' ? ' <span class="pill bad">要返信</span>' : '') + (reqs[a.id] && ['received','contacting','identity_pending','pickup_arranging'].indexOf(a.status) >= 0 ? ' <span class="pill gold">申告あり</span>' : '') + '</td><td>' + dt(a.created_at) + '</td><td>' + esc(a.applicant_name) + (a.agent_org ? '<br><small style="color:var(--mute)">' + esc(a.agent_org) + '</small>' : '') + '</td><td>' + esc(APPLICANT[a.applicant_role]) + '</td><td>' + esc(c.verified_name || c.name || '—') + '</td><td>' + esc((a.categories || []).join('、')) + '</td><td>' + esc(a.pref) + '</td><td>' + pill(STATUS, a.status) + '</td><td>' + esc(handlersText(a) || sm[a.assigned_to] || '—') + '</td></tr>'; }).join('')
       : '<tr><td colspan="9" class="empty">該当する案件はありません</td></tr>';
   }
   ['q','st','open'].forEach(function(i){ $('#' + i).addEventListener('input', draw); });
@@ -294,7 +310,7 @@ function card(id, title, hint, body){ return '<section class="card" id="' + id +
 function logView(kind, app, detail){ return GL.rpc('staff_log_view', { p_kind: kind, p_app: app || null, p_detail: detail || null }).catch(function(){}); }
 var VIEWK = { 'case':'案件を開いた', id_image:'身分証の画像を見た', contract:'契約書の本文を見た', sheet:'鑑定シートを開いた', backup:'バックアップを取り出した', case_list:'案件の一覧を見た' };
 async function viewCase(id){ var my = S.seq;
-  await logView('case', id);
+  await logView('case', id); refreshBadges();
   C = await loadCase(id);
   C.views = can() ? await safe(GL.select('view_log', { application_id: 'eq.' + id, order: 'viewed_at.desc', limit: 50 })) : [];
   var a = C.app, cu = C.cust;
@@ -311,7 +327,7 @@ async function viewCase(id){ var my = S.seq;
     + '<dt>ご要望</dt><dd>' + esc(a.note || '—') + '</dd></dl>'
     + (can('reception','appraiser') ? '<form class="f" data-form="status"><div class="row"><label class="l">状態<select name="status">' + MANUAL.map(function(k){ return '<option value="' + k + '"' + (a.status === k ? ' selected' : '') + '>' + STATUS[k][0] + '</option>'; }).join('')
       + (MANUAL.indexOf(a.status) < 0 ? '<option value="' + a.status + '" selected>' + STATUS[a.status][0] + '（自動）</option>' : '') + '</select></label>'
-      + '</div><div class="l">担当者（チェックで選ぶ・複数可）<div class="hchk">' + (S.names || []).filter(function(n){ return n.active || (a.handler_ids || []).indexOf(n.id) >= 0; }).map(function(n){ return '<label><input type="checkbox" name="h_' + n.id + '"' + ((a.handler_ids || []).indexOf(n.id) >= 0 ? ' checked' : '') + '> ' + esc(n.name) + (n.can_contract ? '<small title="グローブとして契約できる人">★</small>' : '') + '</label>'; }).join('') + '</div></div>'
+      + '</div><div class="l">担当者（チェックで選ぶ・複数可）<small style="display:block;color:var(--mute)">新しく選んで「更新」すると、お客様へ担当者名入りのあいさつのメールが届きます</small><div class="hchk">' + (S.names || []).filter(function(n){ return n.active || (a.handler_ids || []).indexOf(n.id) >= 0; }).map(function(n){ return '<label><input type="checkbox" name="h_' + n.id + '"' + ((a.handler_ids || []).indexOf(n.id) >= 0 ? ' checked' : '') + '> ' + esc(n.name) + (n.can_contract ? '<small title="グローブとして契約できる人">★</small>' : '') + '</label>'; }).join('') + '</div></div>'
       + '<div class="btns"><button class="btn sm">更新する</button><span class="hint" style="color:var(--mute);font-size:12px">承認・契約成立・振込済は、お客様の操作や記録に応じて自動で変わります</span></div></form>' : ''));
   // お客様からの申告と連絡
   html += card('s-req', 'お客様からの申告・連絡', needsAction(C) ? '<span class="pill warn">要対応</span>' : '', renderRequests());
@@ -386,7 +402,7 @@ async function viewCase(id){ var my = S.seq;
   if(C.photos.length && $('#photos')) C.photos.forEach(async function(p){ try{ var u = await GL.signedUrl('intake', C.app.upload_token + '/' + p.name); var im = new Image(); im.alt = 'お品物の写真'; im.src = u; im.loading = 'lazy'; var a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.appendChild(im); $('#photos').appendChild(a); }catch(e){} });
 }
 var EVENT = { nda_requested:'秘密保持契約を希望', mandate_requested:'委任状を作成して署名を依頼', mandate_accepted:'受任者として委任状に署名', identity_submitted:'本人確認の情報を送信', pickup_requested:'集荷を依頼', shipped:'発送（伝票番号を入力）', bank_registered:'振込先を登録', return_address:'返却先を確認', appraisal_answered:'査定に回答', contract_signed:'書類に署名', mandate_signed:'委任状に署名', mandate_revoked:'委任を撤回' };
-var NOTIF = { return_shipped:'返却の発送', new_application:'新しい申込', receipt:'受付番号', appraisal_ready:'査定結果', appraisal_reminder:'査定の再通知', return_notice:'返却予定', staff_reminder:'担当者へ再通知', staff_return_notice:'担当者へ返却予定', contract_ready:'契約書', paid:'振込完了', appraisal_answered:'回答あり', mandate_ready:'委任状', mandate_revoked:'委任撤回', new_contact:'問い合わせ', staff_message:'担当者からの連絡', customer_message:'お客様からの連絡', customer_request:'お客様の手続き', mandate_requested:'代理人が委任状を作成', mandate_signed:'委任状の署名完了', support_new:'チャット相談（担当者へ切替）', test:'通知のテスト', nda_ready:'秘密保持契約書', contract_closed:'契約成立（お客様へ）', sale_closed:'契約成立（担当者へ）' };
+var NOTIF = { greeting:'担当者からのごあいさつ', return_shipped:'返却の発送', new_application:'新しい申込', receipt:'受付番号', appraisal_ready:'査定結果', appraisal_reminder:'査定の再通知', return_notice:'返却予定', staff_reminder:'担当者へ再通知', staff_return_notice:'担当者へ返却予定', contract_ready:'契約書', paid:'振込完了', appraisal_answered:'回答あり', mandate_ready:'委任状', mandate_revoked:'委任撤回', new_contact:'問い合わせ', staff_message:'担当者からの連絡', customer_message:'お客様からの連絡', customer_request:'お客様の手続き', mandate_requested:'代理人が委任状を作成', mandate_signed:'委任状の署名完了', support_new:'チャット相談（担当者へ切替）', test:'通知のテスト', nda_ready:'秘密保持契約書', contract_closed:'契約成立（お客様へ）', sale_closed:'契約成立（担当者へ）' };
 
 var IDT = { menkyo:'運転免許証', mynumber:'マイナンバーカード（表面のみ）', keireki:'運転経歴証明書', hoken:'健康保険の資格確認書・保険証', zairyu:'在留カード・特別永住者証明書', passport:'パスポート', other:'その他の公的な身分証明書' };
 var IDM = { honnin_gentei_yubin:'本人限定受取郵便', mibun_copy_kakitome_koza:'身分証の画像＋転送不要書留＋同名義口座', consult:'相談したい' };
@@ -488,7 +504,7 @@ function bindCase(){
   m.onsubmit = async function(e){
     var f = e.target.closest('form[data-form]'); if(!f) return; e.preventDefault();
     var d = formData(f), k = f.dataset.form, btn = f.querySelector('button:not([type=button])'); if(btn) btn.disabled = true;
-    try{ await FORMS[k](d, f); toast('保存しました'); await viewCase(C.app.id); }
+    try{ var res = await FORMS[k](d, f); toast(typeof res === 'string' ? res : '保存しました'); await viewCase(C.app.id); }
     catch(x){ toast(x.message, true); if(btn) btn.disabled = false; }
   };
   m.onclick = async function(e){
@@ -509,7 +525,7 @@ function askFirst(b, text){
 }
 var ASK = { nda: '定型の秘密保持契約書を作成し、当社（株式会社グローブ・株式会社マネージメントアドバイザーズ）としてあなたの名前で署名します。お客様へ署名のお願いが届きます。', notify: 'お客様へ査定結果を通知します。通知後は金額を変更できません。「グローブとして申込みをする担当者」を選んで通知すると、株式会社グローブ（買主）の申込みとして記録され、お客様はお手続き画面のチェックと電子署名だけで売買契約まで完了できます。', buyersign: '株式会社グローブを代表して売買契約に署名します。', paid: '銀行での振込を実行したことを記録します。お客様へ振込完了を通知します。', agentok: '代理人の本人確認が記録済みであることを確認しました。', newap: '新しい版の査定を作成します。通知済みの査定は取り下げになります。' };
 var FORMS = {
-  status: function(d){ var h = Object.keys(d).filter(function(k){ return /^h_/.test(k) && d[k] === true; }).map(function(k){ return k.slice(2); }); return GL.update('applications', { id: C.app.id }, { status: d.status, handler_ids: h }); },
+  status: async function(d){ var h = Object.keys(d).filter(function(k){ return /^h_/.test(k) && d[k] === true; }).map(function(k){ return k.slice(2); }); var added = h.filter(function(x){ return (C.app.handler_ids || []).indexOf(x) < 0; }); await GL.update('applications', { id: C.app.id }, { status: d.status, handler_ids: h }); return added.length && ['closed','cancelled','returned','paid'].indexOf(d.status) < 0 ? '更新しました。お客様へ担当者（' + added.map(nameOf).join('・') + '）からのあいさつのメールを送りました' : '更新しました'; },
   cust: function(d){ return GL.update('customers', { id: C.cust.id }, { kind: d.kind, name: d.name, email: (d.email || '').toLowerCase() || null, tel: d.tel || null, verified_name: d.verified_name || null, verified_kana: d.verified_kana || null }); },
   reply: function(d){ return GL.insert('messages', { application_id: C.app.id, sender: GL.userId(), sender_kind: 'staff', body: d.body }); },
   note: function(d){ return GL.insert('application_notes', { application_id: C.app.id, body: d.body, author: GL.userId() }); },
@@ -577,7 +593,7 @@ async function viewContacts(){ var my = S.seq;
   var rows = await GL.select('contacts', { order: 'created_at.desc', limit: 300 });
   if(my !== S.seq) return; $('#main').innerHTML = top('問い合わせ', '<span class="pill">' + rows.filter(function(r){ return !r.handled; }).length + '件 未対応</span>') + '<div class="card"><div class="tw"><table><thead><tr><th>日時</th><th>お名前</th><th>連絡先</th><th>内容</th><th></th></tr></thead><tbody>'
     + (rows.map(function(r){ return '<tr><td>' + dt(r.created_at) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.reach) + '</td><td style="white-space:pre-wrap">' + esc(r.body) + '</td><td>' + (r.handled ? '<span class="pill ok">対応済</span>' : '<button class="btn sub sm" data-id="' + r.id + '">対応済にする</button>') + '</td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">問い合わせはありません</td></tr>') + '</tbody></table></div></div>';
-  $('#main').onclick = async function(e){ var b = e.target.closest('button[data-id]'); if(!b) return; b.disabled = true; try{ await GL.update('contacts', { id: b.dataset.id }, { handled: true }); viewContacts(); }catch(x){ toast(x.message, true); b.disabled = false; } };
+  $('#main').onclick = async function(e){ var b = e.target.closest('button[data-id]'); if(!b) return; b.disabled = true; try{ await GL.update('contacts', { id: b.dataset.id }, { handled: true }); refreshBadges(); viewContacts(); }catch(x){ toast(x.message, true); b.disabled = false; } };
 }
 async function viewCodes(){ var my = S.seq;
   var rows = await GL.select('referral_codes', { order: 'created_at.desc' });
