@@ -138,6 +138,13 @@
         }
         pn.textContent=okN===photos.length?'写真'+okN+'枚も受け付けました。':'写真'+(photos.length-okN)+'枚は送信できませんでした。担当者から別の方法をご案内します。';
       }
+      // この端末だけ、ログインなしでお手続き画面に入れるようにする（見られるのは、いま申し込んだ案件だけ）
+      var direct=false;
+      if(r.data.claimToken){
+        b.textContent='お手続き画面を準備しています';
+        try{ GL.useStore('gl-portal',true); if(!GL.session) await GL.signInAnon(); await GL.rpc('portal_claim_token',{p_receipt:r.data.receiptNo,p_token:r.data.claimToken}); direct=true; }catch(e){ direct=false; }
+      }
+      document.getElementById('doneDirect').hidden=!direct; document.getElementById('doneMail').hidden=direct;
       b.disabled=false;b.textContent='この内容で申し込む';
       form.reset();th.innerHTML='';photos=[];current=null;show(1);go(3);
     }else{

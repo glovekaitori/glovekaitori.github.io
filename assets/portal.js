@@ -25,7 +25,7 @@ function msg(t, bad){ var m = $('#pmsg'); m.className = bad ? 'alert' : 'note'; 
 // ── ログイン（メールアドレスだけ。メールのボタンを押すとログイン。この端末では次回からログイン不要） ──
 function viewLogin(){
   box.innerHTML = '<div id="pmsg" hidden role="status"></div>'
-    + '<form class="gate" id="p1" novalidate><p>お申込みのときの<b>メールアドレス</b>を入力してください。ログイン用のメールをお送りします。メールの<b>「ログインする」ボタンを押すだけ</b>で、お手続きの画面が開きます。</p>'
+    + '<form class="gate" id="p1" novalidate><p>G-LOVEからのお知らせメールの<b>ボタンを押すと、そのままこの画面が開きます</b>。お手元にお知らせメールがない場合は、お申込みのときの<b>メールアドレス</b>を入れてください。ボタン付きのメールをすぐにお送りします。</p>'
     + '<div class="field"><label for="p-mail">メールアドレス</label><input type="email" id="p-mail" autocomplete="email" required><p class="hint">代理の方は、代理として申し込んだときのメール、または委任状に登録されたメールです。</p></div>'
     + '<div class="btns"><button class="btn" type="submit">ログイン用のメールを受け取る</button></div>'
     + '<p class="hint" style="font-size:.82rem;color:var(--on-dark-mute)">パスワードや受付番号は不要です。一度ログインすると、この端末では次回からログインせずに開けます（共用の端末では、使い終わったら「ログアウト」を押してください）。</p></form>'
@@ -64,7 +64,7 @@ async function load(){
   var tabs = [['status','お手続き'],['result','査定結果'],['documents','契約・書類']];
   box.innerHTML = '<div class="ptabs">' + tabs.map(function(t){ return '<a href="' + PRE + t[0] + '/"' + (t[0] === VIEW ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('')
     + '<button class="btn ghost" type="button" id="p-out">ログアウト</button></div><p class="ptab-help">' + ({ status:'いちばん上の枠が「次にやること」です。枠の中で入力して送ると、次の手順に進みます。', result:'お品物ごとに「売る」か「返却」を選び、「次へ（内容の確認）」を押してください。契約書を確認し、4つの項目にチェックを入れて署名すると、売買契約まで完了します。', documents:'書類を読み、「同意」にチェックしてから電子署名してください。印刷やPDFでの保存もできます。' })[VIEW] + '</p><div id="pmsg" hidden role="status"></div><div id="pv"></div>';
-  $('#p-out').onclick = async function(){ await GL.signOut(); viewLogin(); msg('ログアウトしました'); };
+  $('#p-out').onclick = async function(){ var b = this; if(!b.dataset.sure){ b.dataset.sure = '1'; b.textContent = 'もう一度押すとログアウト'; return; } await GL.signOut(); viewLogin(); msg('ログアウトしました。次は、お知らせメールのボタンから開けます'); };
   if(!cases.length){ $('#pv').innerHTML = '<p class="note">このメールアドレスのお取引は見つかりませんでした。お申込みのときのメールアドレスでログインしてください（代理の方は、委任状に登録されたメールアドレス）。</p>'; return; }
   ({ status: vStatus, result: vResult, documents: vDocs })[VIEW]();
   if(/^#c-[0-9a-f]{8}$/.test(location.hash)) setTimeout(function(){ var el = document.querySelector(location.hash); if(el) el.scrollIntoView({ block: 'start' }); }, 150);

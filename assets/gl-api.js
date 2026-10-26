@@ -55,6 +55,9 @@
     if(q.error_description) return { error: /expired|invalid/i.test(q.error_description) ? 'ログイン用のボタンの有効期限が切れています。もう一度メールを受け取ってください' : 'ログインできませんでした。もう一度メールを受け取ってください' };
     adopt({ access_token: q.access_token, refresh_token: q.refresh_token, expires_in: Number(q.expires_in) || 3600 }); return { ok: true };
   };
+  // 申込み直後の端末だけで使うログイン（メールアドレスなし。見られるのは、その端末で申し込んだ案件だけ）
+  GL.signInAnon = async function(){ return adopt(await raw('POST', '/auth/v1/signup', { data: {} }, null, false)); };
+  GL.isAnon = function(){ var c = GL.session && claims(GL.session.access_token); return !!(c && c.is_anonymous); };
   GL.verifyOtp = async function(email, code){ return adopt(await raw('POST', '/auth/v1/verify', { type: 'email', email: email, token: code }, null, false)); };
   GL.ensureFresh = async function(){
     var s = GL.session; if(!s) return;
