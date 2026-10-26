@@ -1144,9 +1144,9 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
     var AGING = ['加水分解・ベタつき','電池の液漏れ','ニオイの移り','金具の変色・腐食','革の硬化・ひび割れ','動作の未確認'];
     $('#main').innerHTML = top('鑑定シート', '<a class="btn sub sm" href="#case/' + appId + '">案件に戻る</a><button class="btn sm" id="sh-save">この内容で保存（新しい版）</button>' + (can('appraiser') ? '<button class="btn sm" id="sh-use">この金額を査定に入れる</button>' : '') + '<button class="btn sub sm" id="sh-pdf">報告書をPDFで保存</button><button class="btn sub sm" id="sh-mail">提示額をご案内文に使う</button>')
       + '<p class="note">受付番号 ' + esc(a.receipt_no) + '　品物：' + esc(it ? it.category + '　' + it.description : '（品物の登録前）') + '　' + (sheets[0] ? '最新 第' + sheets[0].version + '版（' + dt(sheets[0].created_at) + '・' + (sheets[0].source === 'auto' ? 'AI（自動）' : esc(staffName(sheets[0].created_by))) + '）' : baseRow ? '未保存（自動鑑定の下書きを表示中）' : '未保存') + '。担当者用の資料です。お客様には送りません。' + (D.autoMeta ? '<br>AIの自動鑑定（' + esc(D.autoMeta.model || '') + '・写真を' + (D.autoMeta.votes || 1) + '回読み取り・' + dt(D.autoMeta.at) + '）の下書きです。メモに「AI推定・要確認」とある相場は、AIの知識による推定です（検索はしていません）。各サイトの「検索」で確かめてください。' + ((D.ai && D.ai.notes || []).length ? '<br>' + D.ai.notes.map(esc).join('<br>') : '') : '') + '</p>'
-      + '<section class="card ai-box"><header><h2>AIで下書きを作る（無料・Gemini アプリ）</h2></header><div class="in">'
+      + '<section class="card ai-box"><header><h2>鑑定専用の Gem（Gemini・検索つき）で鑑定シートを埋める</h2></header><div class="in">'
       + '<ol class="steps"><li><button class="btn sub sm" type="button" id="sh-prompt">① Gemini 用の依頼文をコピー</button>　<button class="btn sub sm" type="button" id="sh-dl">写真をまとめて保存</button>　<a class="btn sub sm" href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer">② Gemini を開く</a></li>'
-      + '<li>Gemini に依頼文を貼り付け、保存した写真を添付して送信します。</li><li>Gemini の回答をすべてコピーし、下の欄に貼り付けて「③ 取り込む」を押します。</li></ol>'
+      + '<li>鑑定専用の Gem を開き、依頼文を貼り付け、保存した写真を添付して送信します（依頼文には、このお品物の分かっている情報・調べる先・出力の形がすべて入っています）。</li><li>Gem の回答をすべてコピーし（前後の説明や出典の一覧ごとで構いません）、下の欄に貼り付けて「③ 取り込む」を押します。</li></ol>'
       + '<textarea id="sh-ai" placeholder="Gemini の回答をここに貼り付け" style="min-height:90px;width:100%"></textarea><div class="row"><button class="btn sm" type="button" id="sh-import">③ 回答を取り込む</button></div>'
       + (D.ai ? '<p class="note bad" style="margin:0">' + dt(D.ai.at) + ' に AI の下書きを取り込みました。相場・他社価格・精度は <b>AI推定</b> です。各サイトの「検索」で実際の値を確かめてから使ってください。</p>' : '')
       + (a.ai_consent ? '' : '<p class="note bad" style="margin:0">この案件は、お客様のお申し出によりAIの利用を止めています。写真を Gemini などに送らないでください。</p>')
@@ -1168,7 +1168,7 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
       + '<label class="l">状態のメモ' + IN('s2.note', D.s2.note) + '</label></div></section>'
       // Step 3
       + '<section class="card"><header><h2>Step 3　価格の算出</h2></header><div class="in">'
-      + '<h3 class="h3">① 定価</h3><div class="row"><label class="l">希望小売価格（上代）' + NUMIN('s3.list', D.s3.list || D.s1.retail) + '</label><label class="l">セール等の最低' + NUMIN('s3.saleMin', D.s3.saleMin) + '</label><label class="l">セール等の最高' + NUMIN('s3.saleMax', D.s3.saleMax) + '</label></div>'
+      + '<h3 class="h3">① 定価</h3>' + (D.s3.listUrl ? '<p class="note" style="margin:0">定価の出典：' + (/^https?:/.test(D.s3.listUrl) ? '<a href="' + esc(safeUrl(D.s3.listUrl.replace(/（.*$/, ''))) + '" target="_blank" rel="noopener noreferrer">' + esc(D.s3.listUrl) + '</a>' : esc(D.s3.listUrl)) + '</p>' : '') + '<div class="row"><label class="l">希望小売価格（上代）' + NUMIN('s3.list', D.s3.list || D.s1.retail) + '</label><label class="l">セール等の最低' + NUMIN('s3.saleMin', D.s3.saleMin) + '</label><label class="l">セール等の最高' + NUMIN('s3.saleMax', D.s3.saleMax) + '</label></div>'
       + '<h3 class="h3">② 中古市場の相場　<small>検索の言葉：<input id="sh-kw" value="' + esc(kw()) + '" style="min-width:240px"></small></h3>'
       + SRC.map(function(g){ var rows = D.s3.market[g[0]] = D.s3.market[g[0]] || g[2].map(function(n){ return { site: n, min: '', max: '', memo: '' }; });
           return '<p class="lbl">' + g[1] + '（' + g[2].length + '社）</p><div class="tw"><table class="mk"><thead><tr><th>サイト・企業</th><th>最小（円）</th><th>最高（円）</th><th>メモ</th><th>計算</th><th></th></tr></thead><tbody>' + rows.map(function(r, i){ var p = 's3.market.' + g[0] + '.' + i + '.';
@@ -1212,7 +1212,7 @@ async function viewSheet(appId, itemId, slot){ var my = S.seq; slot = slot || 1;
     else if(t.dataset.k && t.tagName === 'SELECT'){ setPath(t.dataset.k, t.value); refresh(); } };
   m.onclick = async function(e){ var t = e.target;
     if(t.dataset.srch){ var k = ($('#sh-kw') && $('#sh-kw').value.trim()) || kw(); if(!k){ toast('ブランド名・モデル名を入力してください', true); return; } window.open(searchUrl(t.dataset.srch, k + (t.dataset.buy ? ' 買取' : '')), '_blank', 'noopener'); return; }
-    if(t.id === 'sh-prompt'){ var pr = sheetPrompt(a, cat); try{ await navigator.clipboard.writeText(pr); toast('依頼文をコピーしました。Gemini に貼り付けてください'); }catch(x){ $('#sh-ai').value = pr; $('#sh-ai').select(); toast('コピーできなかったため欄に表示しました。選択してコピーしてください', true); } return; }
+    if(t.id === 'sh-prompt'){ var pr = sheetPrompt(a, cat, D, it); try{ await navigator.clipboard.writeText(pr); toast('依頼文をコピーしました。Gemini に貼り付けてください'); }catch(x){ $('#sh-ai').value = pr; $('#sh-ai').select(); toast('コピーできなかったため欄に表示しました。選択してコピーしてください', true); } return; }
     if(t.id === 'sh-dl'){ t.disabled = true; try{ var objs = (await GL.list('intake', a.upload_token)).filter(function(o){ return o.name && /\.(jpe?g|png|webp|heic)$/i.test(o.name); }); if(!objs.length) throw new Error('写真がありません');
         for(var q = 0; q < objs.length; q++){ var u = await GL.signedUrl('intake', a.upload_token + '/' + objs[q].name), r = await fetch(u); if(!r.ok) continue; var bl = await r.blob(); if(/^image\/jpeg$/.test(bl.type) || /\.jpe?g$/i.test(objs[q].name)) bl = new Blob([stripJpeg(new Uint8Array(await bl.arrayBuffer()))], { type: 'image/jpeg' }); var ln = document.createElement('a'); ln.href = URL.createObjectURL(bl); ln.download = a.receipt_no + '_' + (q + 1) + '.' + objs[q].name.split('.').pop().toLowerCase(); document.body.appendChild(ln); ln.click(); ln.remove(); setTimeout(URL.revokeObjectURL.bind(URL, ln.href), 5000); }
         toast(objs.length + '枚を保存しました（ファイル名は受付番号だけ。撮影場所などの情報は消しています）'); }catch(x){ toast(x.message, true); } t.disabled = false; return; }
@@ -1296,25 +1296,53 @@ async function viewRefs(){ var my = S.seq;
   document.querySelectorAll('[data-rf]').forEach(function(b){ b.onclick = async function(){ b.disabled = true; try{ await GL.update('price_refs', { id: b.dataset.rf }, { active: b.dataset.on === '1' }); toast('変更しました'); viewRefs(); }catch(x){ toast(x.message, true); b.disabled = false; } }; });
 }
 // ── AIによる鑑定シートの下書き（Gemini アプリで手動／自動連携） ──
-function sheetPrompt(a, cat){
-  var siteList = SRC.map(function(g){ return g[0] + '（' + g[1] + '）：' + g[2].join('、'); }).join('\n');
-  return 'あなたは中古ブランド品・時計・宝飾品の買取店の鑑定担当者です。添付した写真のお品物について、次の手順で鑑定し、最後に指定の JSON だけを出力してください。\n'
-    + '品目：' + cat + '\n\n'
-    + 'Step1 情報の構造化：ブランド・メーカー名、モデル名、型番、製造年、付属品（' + ACCESSORIES.join('、') + '）の有無、状態ランクの仮定、定価を特定し、鑑定に必要で不足している情報を挙げる。\n'
-    + 'Step2 状態ランクの厳格な判定：N=新品、S=未使用、A=美品、B=一般、C=難あり。少しでも懸念があれば低い方を採用。マイナス要因（ニオイ、動作未確認、キズ、汚れなど）を挙げる。\n'
-    + 'Step3 価格：①定価（上代・セール等の最低と最高）②中古市場の相場（次の区分とサイトごとの最小〜最高。調べられない場合は null）\n' + siteList + '\n'
-    + '③卸値（販売先ごとの相場）と推奨の販売先・手法 ④他社の買取価格（' + OTHERS.join('、') + 'の7社の最低〜最大）。金額はすべて日本円の数値。\n'
-    + 'Step4 リスクと真贋：コピー品の特徴として確認すべき点、経年劣化しやすい箇所、真贋の精度（0〜100の数値）、精度を上げるために不足している情報。\n'
-    + 'Step5 接客トーク：為替（円安・円高・横ばい）、相場の流れ（上昇・下落・横ばい）、市場の在庫（少ない・多い・ふつう）を判断し、お客様が納得しやすい価格の根拠の説明文を作る。事実と異なる説明や、判断を急かす表現は使わない。\n\n'
-    + '守ること：写真や検索で確かめられない値は推測で埋めずに null にする。真贋を断定しない。\n'
-    + '出力は次の形の JSON だけ（前後に文章を付けない）：\n'
-    + '{"s1":{"brand":"","model":"","ref":"","year":"","accessories":{"保証書・ギャランティカード":null},"rank_guess":"A","retail":null,"missing":[""]},'
-    + '"s2":{"rank":"B","negatives":[""],"note":""},'
-    + '"s3":{"list":null,"sale_min":null,"sale_max":null,"market":{"dom":[{"site":"","min":null,"max":null}],"intl":[],"major":[],"genauc":[],"flea":[],"shop":[]},"wholesale":[{"channel":"","min":null,"max":null}],"method":"","others":[{"name":"","min":null,"max":null}]},'
-    + '"s4":{"points":[""],"aging":[""],"accuracy":null,"missing":[""]},'
-    + '"s5":{"fx":"横ばい","trend":"横ばい","stock":"ふつう","script":""}}';
+// 鑑定専用の Gemini（Gem・検索つき）に渡す依頼文。鑑定シートの全項目を埋めるため、調べる先・書き方・出力の形を細かく指定する
+// お客様の名前・連絡先は入れない。すでに分かっている情報（AIの自動鑑定・担当者の入力）は「確かめて訂正する」材料として渡す
+function sheetPrompt(a, cat, D, it){
+  D = D || { s1: { acc: {} }, s2: { neg: {} } };
+  var v = function(x){ return x == null || x === '' ? '不明' : String(x); };
+  var accKnown = ACCESSORIES.map(function(k){ var x = (D.s1.acc || {})[k]; return k + '：' + (x === true ? 'あり' : x === false ? 'なし' : '不明'); }).join('、');
+  var negKnown = Object.keys((D.s2 || {}).neg || {}).filter(function(k){ return D.s2.neg[k]; });
+  var pts = CHECKLIST[cat] || CHECKLIST['その他'];
+  var spec = [D.s1.brand, D.s1.model, D.s1.ref].filter(Boolean).join(' ') || (it && it.description) || '';
+  var siteList = SRC.map(function(g){ return '　・' + g[0] + '（' + g[1] + '）：' + g[2].join('、'); }).join('\n');
+  var today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' });
+  return '【鑑定依頼】G-LOVE 鑑定シート作成（' + today + '）\n'
+    + 'あなたは中古のブランド品・時計・宝飾品・貴金属・美術品の買取店で10年以上の経験がある鑑定担当者です。添付の写真のうち、下の「対象のお品物」だけを鑑定し、Google 検索で実際の価格を調べて、鑑定シートの全項目を埋めてください。あなたに設定済みの指示と出力の形が違う場合は、この依頼文の形を優先してください。\n\n'
+    + '■ 対象のお品物\n'
+    + '品目：' + cat + (spec ? '\nお品物：' + spec : '') + (it && it.features ? '\n特徴（担当者の記録）：' + it.features : '') + (it && it.condition_note ? '\n状態（担当者の記録）：' + it.condition_note : '') + '\n'
+    + '■ すでに分かっていること（写真で確かめ、違っていれば訂正してください）\n'
+    + 'ブランド：' + v(D.s1.brand) + '／モデル：' + v(D.s1.model) + '／型番：' + v(D.s1.ref) + '／製造年：' + v(D.s1.year) + '／状態ランクの仮定：' + v(D.s1.rankGuess) + '\n'
+    + '付属品：' + accKnown + '\n'
+    + (negKnown.length ? 'マイナス要因：' + negKnown.join('、') + '\n' : '')
+    + '\n■ 手順\n'
+    + 'Step1 情報の構造化：ブランド・モデル名・型番・製造年・素材・色・サイズを写真から特定する。型番やシリアルは写っている文字をそのまま書き写す。各判断の根拠（どの写真のどこに何が見えたか）と確からしさ（0〜100）を書く。付属品（' + ACCESSORIES.join('、') + '）の有無を判定する（写っていなければ null）。\n'
+    + 'Step2 状態ランクの判定：N=新品／S=未使用／A=美品／B=一般／C=難あり。少しでも懸念があれば低い方。マイナス要因は次から選ぶ：' + NEGATIVES.map(function(n){ return n[0]; }).join('、') + '。写真で見えない面は「懸念あり」とみなす。\n'
+    + 'Step3 価格の調査（必ず Google 検索で調べる。記憶だけで数字を書かない）\n'
+    + '　① 定価：ブランドの日本の公式サイト・正規店の現在の価格（税込）。廃番なら最終の価格と時期。セール・並行輸入品の最安と最高。\n'
+    + '　② 中古市場の相場：次の区分・サイトごとに、同じモデル（できれば同じ型番）で状態が近いものの価格の最小〜最大。オークション・フリマは「落札済み・売り切れ」の価格を使い、出品中の価格は使わない（使う場合は note に「出品中」と書く）。業者間オークション（JBA・SBA など）は会員制で公開されていないため、公開されている落札データ（オークファン等）や業界の記事から推定し、推定であることを note に書く。\n' + siteList + '\n'
+    + '　③ 卸値と販売方法：業者間オークション・海外向け・国内の中古店への卸など、販売先ごとの卸値の目安と、このお品物に最も向く販売先・販売方法と理由。\n'
+    + '　④ 他社の買取価格：' + OTHERS.join('、') + ' の各社が公開している買取実績・買取価格（同じモデル・近い状態）。見つからない会社は null とし、note に「公開情報なし」と書く。\n'
+    + '　各値に、出典の URL・その価格の時期（例：2026年9月）・件数・メモを付ける。見つからない値は null（もっともらしい数字で埋めない）。金額はすべて日本円の数値（カンマ・円は付けない）。\n'
+    + 'Step4 真贋とリスク：次の確認点を写真で確かめ、問題がなかった点（points）・気になる点（concern）・写真では確かめられない点（unverifiable）に分ける：' + pts.join('／') + '。経年劣化しやすく実物で確かめる箇所（aging）。真贋の確からしさ（accuracy、0〜100。写真だけの場合は80まで）。精度を上げるために不足している情報（missing）と、追加でほしい写真（more_photos）。真贋は断定しない。\n'
+    + 'Step5 接客の材料：為替（米ドル円の今日の値と3か月前の値を検索し、円安・円高・横ばい）、このモデルの相場の流れ（上昇・下落・横ばい）、市場の在庫（少ない・多い・ふつう）を、検索した事実を根拠に判断する（basis に根拠と出典）。お客様への価格の根拠の説明文（script）を作る：①お品物の良い点を先に認める ②相場の事実 ③状態による調整を正直に ④「お売りにならなくても費用はかからない」と選択の自由を伝える。誠実で分かりやすく、判断を急かさない。金額は書かず、提示額は {提示額}、相場は {相場}、為替の説明は {為替} と書く。\n\n'
+    + '■ 守ること\n・写真や検索で確かめられない値は null。推測の値には note に「推定」と書く。\n・お客様の個人情報（顔・住所・送り状など）が写真に写っていても書き写さない（privacy に「写っている」とだけ書く）。\n・最後に、次の形の JSON を1つだけ出力する（JSON の前後に説明を付けてもよいが、JSON は途中で切らない）。\n\n'
+    + '{"s1":{"brand":"","model":"","ref":"","year":"","material":"","color":"","size":"","evidence":{"brand":"写真2：金具の刻印","model":"","ref":"","year":""},"confidence":{"brand":0,"model":0,"ref":0,"year":0},'
+    + '"accessories":{' + ACCESSORIES.map(function(k){ return '"' + k + '":null'; }).join(',') + '},"rank_guess":"B","retail":null,"missing":[""],"privacy":""},\n'
+    + '"s2":{"rank":"B","negatives":["上の一覧から選ぶ"],"note":"状態の説明"},\n'
+    + '"s3":{"list":null,"list_url":"","list_when":"","sale_min":null,"sale_max":null,\n'
+    + ' "market":{' + SRC.map(function(g){ return '"' + g[0] + '":[{"site":"' + g[2][0] + '","min":null,"max":null,"url":"","when":"","count":null,"note":""}]'; }).join(',') + '},\n'
+    + ' "wholesale":[{"channel":"業者間オークション","min":null,"max":null,"url":"","note":""}],"method":"推奨の販売先と理由",\n'
+    + ' "others":[' + OTHERS.map(function(n){ return '{"name":"' + n + '","min":null,"max":null,"url":"","when":"","note":""}'; }).join(',') + ']},\n'
+    + '"s4":{"points":[""],"concern":[""],"unverifiable":[""],"aging":[""],"accuracy":null,"missing":[""],"more_photos":[""]},\n'
+    + '"s5":{"fx":"円安|円高|横ばい","usdjpy":null,"trend":"上昇|下落|横ばい","stock":"少ない|多い|ふつう","basis":"判断の根拠と出典","script":""}}';
 }
-function parseAiJson(t){ t = String(t || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, ''); var i = t.indexOf('{'), j = t.lastIndexOf('}'); if(i < 0 || j < i) throw new Error('回答の中に JSON が見つかりません。Gemini の回答をそのまま貼り付けてください'); return JSON.parse(t.slice(i, j + 1)); }
+function parseAiJson(t){ t = String(t || '').trim().replace(/```(?:json)?/gi, '');
+  // 説明文や出典の一覧が JSON の前後に付いていても、"s1" を含む最初の完結した JSON を取り出す
+  for(var i = t.indexOf('{'); i >= 0; i = t.indexOf('{', i + 1)){ var d = 0, q = false, e = false;
+    for(var k = i; k < t.length; k++){ var ch = t[k]; if(q){ if(e) e = false; else if(ch === '\\') e = true; else if(ch === '"') q = false; continue; }
+      if(ch === '"') q = true; else if(ch === '{') d++; else if(ch === '}'){ d--; if(d === 0){ try{ var o = JSON.parse(t.slice(i, k + 1)); if(o && (o.s1 || o.s3)) return o; }catch(x){} break; } } } }
+  throw new Error('回答の中に鑑定シートの JSON が見つかりません。Gemini の回答をそのまま全部貼り付けてください'); }
 // 写真の付加情報（撮影場所・機種など）を消す（JPEG）。画素は変えない
 function stripJpeg(u){ if(u[0] !== 0xff || u[1] !== 0xd8) return u; var out = [0xff, 0xd8], i = 2;
   while(i + 4 <= u.length){ if(u[i] !== 0xff) return u; var m = u[i + 1]; if(m === 0xda){ var a = new Uint8Array(out.length + u.length - i); a.set(out); a.set(u.subarray(i), out.length); return a; }
@@ -1325,19 +1353,20 @@ function importAi(D, x, source){
   var s = function(v){ return v == null ? '' : String(v); };
   var auto = source === 'auto';
   // 出典の扱い：自動鑑定で出典を確かめられた値は「検索で確認」、確かめられない値は計算に使わない。Gemini アプリから貼り付けた値はすべて「AI推定」
-  var tag = function(r){ return !auto ? 'AI推定' : r.use != null ? (r.verified ? '実績' : 'AI推定・要確認') : (r.verified ? '検索で確認' : 'AI推定・出典未確認'); };
+  var tag = function(r){ return !auto ? (r.url ? 'Geminiの検索（出典あり・要確認）' : 'AI推定') + (r.when ? '・' + s(r.when) : '') + (r.count ? '・' + s(r.count) + '件' : '') : r.use != null ? (r.verified ? '実績' : 'AI推定・要確認') : (r.verified ? '検索で確認' : 'AI推定・出典未確認'); };
   var exOf = function(r){ return auto && (r.use != null ? !r.use : (!r.verified || !!r.outlier)); };
   var s1 = x.s1 || {}, s2 = x.s2 || {}, s3 = x.s3 || {}, s4 = x.s4 || {}, s5 = x.s5 || {};
   ['brand','model','ref','year'].forEach(function(k){ if(s1[k]) D.s1[k] = s(s1[k]); });
   if(s1.retail != null) D.s1.retail = s(s1.retail);
   D.s1.aiMissing = (s1.missing || []).map(s).filter(Boolean).slice(0, 30);
   if(s1.evidence) D.s1.aiEvidence = Object.keys(s1.evidence).filter(function(k){ return s1.evidence[k]; }).map(function(k){ var c = (s1.confidence || {})[k]; return ({ brand: 'ブランド', model: 'モデル', ref: '型番', year: '製造年' }[k] || k) + '＝' + s(s1.evidence[k]) + (c != null ? '（確からしさ' + c + '%）' : ''); }).join('／');
-  if(s1.privacy) D.s1.aiPrivacy = s(s1.privacy);
+  if(s1.privacy) D.s1.aiPrivacy = s(s1.privacy); var ext = [s1.material, s1.color, s1.size].filter(Boolean).map(s).join('・'); if(ext && !D.s1.accNote) D.s1.accNote = '素材・色・サイズ：' + ext;
   if(/^[NSABC]$/.test(s1.rank_guess || '')) D.s1.rankGuess = s1.rank_guess;
   Object.keys(s1.accessories || {}).forEach(function(k){ var v = s1.accessories[k]; var key = ACCESSORIES.filter(function(a){ return a === k || a.indexOf(k) >= 0 || k.indexOf(a.split('・')[0]) >= 0; })[0]; if(key && (v === true || v === false)) D.s1.acc[key] = v; });
   if(/^[NSABC]$/.test(s2.rank || '') && RANK_ORDER.indexOf(s2.rank) > RANK_ORDER.indexOf(D.s1.rankGuess)) D.s1.rankGuess = s2.rank;
   (s2.negatives || []).forEach(function(n){ var hit = NEGATIVES.filter(function(m){ return String(n).indexOf(m[0].split('（')[0].slice(0, 3)) >= 0; })[0]; if(hit) D.s2.neg[hit[0]] = true; });
   if(s2.note || (s2.negatives || []).length) D.s2.note = [s(s2.note)].concat((s2.negatives || []).map(s)).filter(Boolean).join('／');
+  if(s3.list_url) D.s3.listUrl = s(s3.list_url) + (s3.list_when ? '（' + s(s3.list_when) + '）' : '');
   if(s3.list != null) D.s3.list = s(s3.list); if(s3.sale_min != null) D.s3.saleMin = s(s3.sale_min); if(s3.sale_max != null) D.s3.saleMax = s(s3.sale_max);
   SRC.forEach(function(g){ var got = (s3.market || {})[g[0]] || []; if(!got.length) return; var rows = D.s3.market[g[0]] = D.s3.market[g[0]] || g[2].map(function(n){ return { site: n, min: '', max: '', memo: '' }; });
     got.forEach(function(r){ if(r.min == null && r.max == null) return; var row = rows.filter(function(x){ return x.site && r.site && !x.min && !x.max && (x.site.indexOf(String(r.site).slice(0, 3)) >= 0 || String(r.site).indexOf(x.site.slice(0, 3)) >= 0); })[0];
@@ -1346,11 +1375,11 @@ function importAi(D, x, source){
   if(s3.method) D.s3.method = s(s3.method);
   (s3.others || []).forEach(function(o){ if(o.min == null && o.max == null) return; var n = OTHERS.filter(function(k){ return String(o.name).indexOf(k) >= 0 || k.indexOf(String(o.name)) >= 0; })[0]; if(n) D.s3.others[n] = { min: s(o.min), max: s(o.max), url: o.url || '', memo: tag(o) + (o.note ? '・' + s(o.note) : ''), ex: exOf(o) }; });
   if(s4.accuracy != null) D.s4.accuracy = s(s4.accuracy);
-  D.s4.missing = [].concat(s4.missing || [], s4.unverifiable || []).map(s).filter(function(v, i, a){ return v && a.indexOf(v) === i; }).join('\n') || D.s4.missing;
+  D.s4.missing = [].concat(s4.missing || [], s4.unverifiable || [], (s4.more_photos || []).filter(Boolean).map(function(x){ return '追加でほしい写真：' + x; })).map(s).filter(function(v, i, a){ return v && a.indexOf(v) === i; }).join('\n') || D.s4.missing;
   D.s4.aiOk = (s4.points || []).map(s).filter(Boolean).slice(0, 20); D.s4.aiConcern = (s4.concern || []).map(s).filter(Boolean).slice(0, 20);
   if((s4.aging || []).length) D.s4.aiAging = s4.aging.map(s).filter(Boolean).slice(0, 20);
   if(['円安','円高','横ばい'].indexOf(s5.fx) >= 0) D.s5.fx = s5.fx; if(['上昇','下落','横ばい'].indexOf(s5.trend) >= 0) D.s5.trend = s5.trend; if(['少ない','多い','ふつう'].indexOf(s5.stock) >= 0) D.s5.stock = s5.stock;
-  if(s5.script) D.s5.script = s(s5.script); if(s5.basis) D.s5.basis = s(s5.basis);
+  if(s5.script) D.s5.script = s(s5.script); if(s5.basis) D.s5.basis = s(s5.basis) + (s5.usdjpy ? '（米ドル円 ' + s(s5.usdjpy) + '円）' : '');
   D.ai = { source: source, at: new Date().toISOString(), notes: x.notes || [] };
   return D;
 }
