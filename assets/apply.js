@@ -127,6 +127,8 @@
     var nav=document.createElement('div');nav.className='btns wnav';
     if(i>0){var bk=document.createElement('button');bk.type='button';bk.className='btn ghost';bk.textContent='戻る';bk.onclick=function(){show(step-1);};nav.appendChild(bk);}
     if(i<sets.length-1){var nx=document.createElement('button');nx.type='button';nx.className='btn';nx.textContent='次へ（'+sets[i+1].dataset.title+'）';nx.onclick=function(){next();};nav.appendChild(nx);}
+    // 最後の画面の「戻る」は、いちばん下の「入力内容を確認する」の横に置く
+    if(i===sets.length-1){var fb=final.querySelector('.btns');if(fb&&nav.firstChild)fb.insertBefore(nav.firstChild,fb.firstChild);return;}
     fs.appendChild(nav);
   });
   function show(n){
