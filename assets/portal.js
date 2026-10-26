@@ -23,7 +23,7 @@ var cases = [];
 function msg(t, bad){ var m = $('#pmsg'); m.className = bad ? 'alert' : 'note'; m.hidden = !t; m.textContent = t || ''; if(t) m.scrollIntoView({ block:'nearest' }); }
 
 // ── ログイン（メールアドレスだけ。メールのボタンを押すとログイン。この端末では次回からログイン不要） ──
-function viewLogin(){
+function viewLogin(){ var nxb = document.getElementById('nx-bar'); if(nxb) nxb.remove(); document.body.classList.remove('has-nxbar');
   box.innerHTML = '<div id="pmsg" hidden role="status"></div>'
     + '<form class="gate" id="p1" novalidate><p>G-LOVEからのお知らせメールの<b>ボタンを押すと、そのままこの画面が開きます</b>。お手元にお知らせメールがない場合は、お申込みのときの<b>メールアドレス</b>を入れてください。ボタン付きのメールをすぐにお送りします。</p>'
     + '<div class="field"><label for="p-mail">メールアドレス</label><input type="email" id="p-mail" autocomplete="email" required><p class="hint">代理の方は、代理として申し込んだときのメール、または委任状に登録されたメールです。</p></div>'
@@ -63,14 +63,15 @@ async function load(){
   cases = await GL.rpc('portal_cases', {});
   var tabs = [['status','お手続き'],['result','査定結果'],['documents','契約・書類']];
   box.innerHTML = '<div class="ptabs">' + tabs.map(function(t){ return '<a href="' + PRE + t[0] + '/"' + (t[0] === VIEW ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('')
-    + '<button class="btn ghost" type="button" id="p-out">ログアウト</button></div><p class="ptab-help">' + ({ status:'いちばん上の枠が「次にやること」です。枠の中で入力して送ると、次の手順に進みます。', result:'お品物ごとに「売る」か「返却」を選び、「次へ（内容の確認）」を押してください。契約書を確認し、4つの項目にチェックを入れて署名すると、売買契約まで完了します。', documents:'書類を読み、「同意」にチェックしてから電子署名してください。印刷やPDFでの保存もできます。' })[VIEW] + '</p><div id="pmsg" hidden role="status"></div><div id="pv"></div>';
+    + '<button class="btn ghost" type="button" id="p-out">ログアウト</button></div><p class="ptab-help">' + ({ status:'金色の太い枠が「次にやること」です。枠の中で入力して送ると、次の手順に進みます（画面の下にも表示されます）。', result:'お品物ごとに「売る」か「返却」を選び、「次へ（内容の確認）」を押してください。契約書を確認し、4つの項目にチェックを入れて署名すると、売買契約まで完了します。', documents:'書類を読み、「同意」にチェックしてから電子署名してください。印刷やPDFでの保存もできます。' })[VIEW] + '</p><div id="pmsg" hidden role="status"></div><div id="pv"></div>';
   $('#p-out').onclick = async function(){ var b = this; if(!b.dataset.sure){ b.dataset.sure = '1'; b.textContent = 'もう一度押すとログアウト'; return; } await GL.signOut(); viewLogin(); msg('ログアウトしました。次は、お知らせメールのボタンから開けます'); };
   if(!cases.length){ $('#pv').innerHTML = '<p class="note">このメールアドレスのお取引は見つかりませんでした。お申込みのときのメールアドレスでログインしてください（代理の方は、委任状に登録されたメールアドレス）。</p>'; return; }
   ({ status: vStatus, result: vResult, documents: vDocs })[VIEW]();
+  nextBar();
   if(/^#c-[0-9a-f]{8}$/.test(location.hash)) setTimeout(function(){ var el = document.querySelector(location.hash); if(el) el.scrollIntoView({ block: 'start' }); }, 150);
 }
 function head(c){ var nx = VIEW !== 'status' ? tasks(c)[0] : null; return '<div class="phd"><p class="eyebrow">受付番号</p><h2 class="no">' + esc(c.receiptNo) + '</h2><p>' + esc(STATUS[c.status] || c.status) + '</p>'
-  + (nx && nx.key !== 'info' && nx.key !== 'wait' && !(nx.key === 'link' && nx.href === VIEW) ? '<p class="pnext">次にやること：<a href="' + PRE + 'status/#c-' + c.id.slice(0, 8) + '">' + esc(nx.title) + '</a></p>' : '')
+  + (nx && nx.key !== 'info' && nx.key !== 'wait' && !(nx.key === 'link' && nx.href === VIEW) ? '<p class="pnext"><span class="nx-l">次にやること</span><a href="' + PRE + 'status/#c-' + c.id.slice(0, 8) + '">' + esc(nx.title) + '　→ ここから進む</a></p>' : '')
   + (c.actor === 'agent' ? '<p class="pill ' + (c.mandateActive ? 'on' : '') + '">代理の方としてログイン中' + (c.mandateActive ? '' : '（委任は有効になっていません）') + '</p>' : '') + '</div>'; }
 
 // ── 取引ナビ：次にやること ──
@@ -199,9 +200,30 @@ function mandatePreview(f, c){
   var vu = g('validUntil'); vu = vu ? vu.replace(/^(\d+)-(\d+)-(\d+)$/, '$1年$2月$3日') : '本取引の完了まで';
   return '委任状\n\n私（売主）' + (g('sellerName') || '〇〇') + 'は、受付番号 ' + c.receiptNo + ' の取引に関し、次の者を代理人と定め、下記の権限を委任します。\n\n代理人：' + (g('agentName') || '〇〇') + (g('agentOrg') ? '（' + g('agentOrg') + '）' : '') + '\n委任する権限：' + sc.join('、') + '\n期限：' + vu + '\n\n売主はいつでもこの委任を撤回できます。撤回の時点から、代理人は上記の手続きを行えません。\n代理人による操作はすべて記録され、売主が確認できます。\n代理人は、委任された範囲を超えて手続きを行わず、取引で知り得た情報を第三者に開示しません。';
 }
+// お客様の操作が必要な「次にやること」
+var ACT_KEYS = ['mandate','identity','pickup','tracking','bank','return','link','sign','answer'];
+// 画面の下に「次にやること」を常に出す（枠が画面の外にあるときだけ）。押すとその枠へ移動する
+var nxObs = null;
+function nextBar(){
+  var old = document.getElementById('nx-bar'); if(old) old.remove(); document.body.classList.remove('has-nxbar'); if(nxObs){ nxObs.disconnect(); nxObs = null; }
+  var card = document.querySelector('.pnav.act'), link = document.querySelector('.pnext a'), title = '';
+  if(!card && !link){ var hc = (cases || []).filter(function(c){ return ACT_KEYS.indexOf(tasks(c)[0].key) >= 0; })[0];
+    if(!hc) return; link = { href: PRE + 'status/#c-' + hc.id.slice(0, 8) }; title = tasks(hc)[0].title; }
+  title = title || (card ? card.dataset.nx : link.textContent.replace(/\s*→.*$/, ''));
+  var bar = document.createElement('div'); bar.id = 'nx-bar'; bar.setAttribute('role', 'region'); bar.setAttribute('aria-label', '次にやること');
+  bar.innerHTML = '<span class="nx-l">次にやること</span><span class="nx-t">' + esc(title) + '</span><button type="button" class="btn">ここから進む</button>';
+  bar.querySelector('button').onclick = function(){ if(card){ card.scrollIntoView({ behavior: 'smooth', block: 'start' }); var f = card.querySelector('input,select,textarea,button'); if(f) setTimeout(function(){ try{ f.focus({ preventScroll: true }); }catch(e){} }, 500); } else location.href = link.href; };
+  document.body.appendChild(bar); document.body.classList.add('has-nxbar');
+  if(card && 'IntersectionObserver' in window){ nxObs = new IntersectionObserver(function(es){ bar.classList.toggle('hide', es[0].isIntersecting); }, { threshold: 0, rootMargin: '0px 0px -180px 0px' }); nxObs.observe(card); }
+}
 function navCard(c){
   var T = tasks(c), now = T[0], rest = T.slice(1);
-  return '<section class="pnav" aria-label="次にやること"><p class="eyebrow">次にやること</p><h3>' + esc(now.title) + '</h3><p>' + esc(now.desc) + '</p>' + taskForm(c, now) + '</section>'
+  var act = ACT_KEYS.indexOf(now.key) >= 0, cur = STEP[c.status] || 0;
+  return '<section class="pnav ' + (act ? 'act' : 'idle') + '" id="nx-' + c.id.slice(0, 8) + '" data-nx="' + esc(now.title) + '" aria-label="次にやること">'
+    + '<p class="nx-badge">' + (act ? '次にやること　<span>お客様の操作が必要です</span>' : '現在の状況') + '</p>'
+    + '<h3>' + esc(now.title) + '</h3>'
+    + '<p class="nx-step">全' + STEPS.length + '段階のうち <b>' + (cur + 1) + '段階目</b>（' + esc(STEPS[cur]) + '）</p>'
+    + '<p>' + esc(now.desc) + '</p>' + taskForm(c, now) + '</section>'
     + (rest.length ? '<div class="prest"><p class="pmeta">このあとのお手続き</p><ul>' + rest.map(function(t){ return '<li>' + esc(t.title) + '</li>'; }).join('') + '</ul></div>' : '');
 }
 function msgBox(c){

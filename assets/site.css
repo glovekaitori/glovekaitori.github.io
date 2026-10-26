@@ -427,10 +427,35 @@ body::after{content:"";position:fixed;inset:0;z-index:100;pointer-events:none;op
 }
 
 /* 取引ナビ */
-.pnav{border:1px solid var(--gold);background:linear-gradient(180deg,rgba(200,174,125,.09),rgba(200,174,125,.02));padding:clamp(18px,3vw,28px);display:grid;gap:12px}
-.pnav .eyebrow{font-family:var(--f-latin);color:var(--gold);letter-spacing:.4em;font-size:.75rem}
+.pnav{border:1px solid var(--gold);background:linear-gradient(180deg,rgba(200,174,125,.09),rgba(200,174,125,.02));padding:clamp(18px,3vw,28px);display:grid;gap:12px;scroll-margin-top:90px}
 .pnav h3{font-size:1.2rem;color:var(--white)}
-.pnav>p{color:var(--on-dark)}
+.pnav>p{color:var(--on-dark);font-size:1rem;line-height:1.8}
+/* 「次にやること」：お客様の操作が必要なときは、太い金の枠・大きな見出し・目印で必ず目に入るようにする */
+.pnav.act{border:3px solid var(--gold-hi,#e6d3a8);background:linear-gradient(180deg,rgba(200,174,125,.2),rgba(200,174,125,.06));box-shadow:0 0 0 4px rgba(200,174,125,.15),0 10px 30px rgba(0,0,0,.35)}
+.pnav.act h3{font-size:clamp(1.35rem,4.6vw,1.7rem);font-weight:700;line-height:1.5}
+.nx-badge{justify-self:start;display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;padding:6px 14px;font-size:1rem;font-weight:700;letter-spacing:.08em;color:#1a1612;background:var(--gold-hi,#e6d3a8);border-radius:999px}
+.nx-badge::before{content:"";width:10px;height:10px;border-radius:50%;background:#b3261e;box-shadow:0 0 0 0 rgba(179,38,30,.6);animation:nxPulse 1.6s infinite}
+.pnav>p.nx-badge{color:#1a1612;line-height:1.4}
+.nx-badge span{font-weight:500;font-size:.85rem;letter-spacing:0}
+.pnav.idle>p.nx-badge{color:var(--gold)}
+.pnav.idle .nx-badge{background:transparent;color:var(--gold);border:1px solid var(--gold-line);font-weight:500}
+.pnav.idle .nx-badge::before{background:var(--gold);animation:none}
+.nx-step{font-size:.92rem;color:var(--on-dark-mute)}
+.nx-step b{color:var(--gold-hi,#e6d3a8)}
+.pnav.act .btns .btn,.pnav.act .ptask-f>.btn,.pnav.act button[type=submit]{min-height:56px;font-size:1.05rem;font-weight:700;padding-inline:28px}
+@media (max-width:520px){.pnav.act .btns{display:grid}.pnav.act .btns .btn{width:100%}}
+@keyframes nxPulse{0%{box-shadow:0 0 0 0 rgba(179,38,30,.6)}70%{box-shadow:0 0 0 10px rgba(179,38,30,0)}100%{box-shadow:0 0 0 0 rgba(179,38,30,0)}}
+@media (prefers-reduced-motion:reduce){.nx-badge::before{animation:none}}
+/* 画面の下に常に出る「次にやること」（枠が見えているときは隠す） */
+#nx-bar{position:fixed;z-index:95;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:#1d1914;border-top:2px solid var(--gold-hi,#e6d3a8);box-shadow:0 -8px 24px rgba(0,0,0,.4);transition:transform .25s}
+#nx-bar.hide{transform:translateY(110%)}
+#nx-bar .nx-l{flex:none;font-size:.8rem;font-weight:700;color:#1a1612;background:var(--gold-hi,#e6d3a8);padding:3px 10px;border-radius:999px}
+#nx-bar .nx-t{flex:1;min-width:0;font-size:1rem;font-weight:700;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nx-bar .btn{flex:none;min-height:46px;font-size:.95rem;font-weight:700}
+@media (max-width:520px){#nx-bar{flex-wrap:wrap}#nx-bar .nx-t{flex-basis:calc(100% - 110px)}#nx-bar .btn{width:100%}}
+body.has-nxbar main{padding-bottom:120px}
+body.has-nxbar .hp-btn{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+@media (max-width:520px){body.has-nxbar .hp-btn{bottom:calc(170px + env(safe-area-inset-bottom,0px))}#nx-bar .nx-t{white-space:normal}}
 .ptask-f{display:grid;gap:16px;margin-top:6px}
 .ptask-f .field label,.ptask-f .field .lbl{font-size:.9rem}
 .ptask-f input,.ptask-f select,.ptask-f textarea{width:100%;font:inherit;font-size:1rem;color:var(--white);background:var(--char);border:1px solid var(--grey-2);padding:12px 13px;min-height:48px;border-radius:0}
@@ -450,7 +475,9 @@ body::after{content:"";position:fixed;inset:0;z-index:100;pointer-events:none;op
 .psummary .eyebrow{font-family:var(--f-latin);color:var(--gold);letter-spacing:.4em;font-size:.75rem}
 .psummary b{color:var(--gold-hi);font-size:1.2rem}
 .psummary ul{margin:0;padding-left:1.2em;font-size:.92rem}
-.pnext{margin-top:8px;font-size:.9rem;color:var(--gold-hi)}
+.pnext{margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border:2px solid var(--gold-hi,#e6d3a8);background:rgba(200,174,125,.14);font-size:1rem;font-weight:700}
+.pnext .nx-l{font-size:.8rem;color:#1a1612;background:var(--gold-hi,#e6d3a8);padding:3px 10px;border-radius:999px}
+.pnext a{color:var(--gold-hi,#e6d3a8);text-decoration:underline;text-underline-offset:4px}
 .pmsgs{display:grid;gap:10px;max-height:420px;overflow:auto;padding-right:4px}
 .pm{padding:12px 14px;border:1px solid var(--grey);max-width:88%}
 .pm p:last-child{white-space:pre-wrap;color:var(--on-dark)}
