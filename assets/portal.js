@@ -125,7 +125,7 @@ function tasks(c){
 }
 function waitText(c){
   var st = c.status, pr = c.pickupRequest, pk = c.pickup;
-  if(st === 'paid') return 'お振込みが完了しました' + (c.paid ? '（' + yen(c.paid.amount) + '）' : '');
+  if(st === 'paid') return 'お振込みが完了しました' + (c.paid ? '（' + yen(c.paid.amount) + (c.paid.at ? '・' + dt(c.paid.at) + 'にお振込み' : '') + '）。ご利用ありがとうございました' : '');
   if(st === 'closed') return 'お取引は完了しました';
   if(st === 'returned') return 'お品物の返却が完了しました';
   if(st === 'returning') return 'お品物を返却しています';
