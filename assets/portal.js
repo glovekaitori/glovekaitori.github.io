@@ -84,6 +84,24 @@ function canDocs(c){ return c.actor === 'seller' || (c.mandateActive && c.scope 
 function unsignedSale(c){ var mine = c.actor === 'seller' ? 'seller' : 'agent'; return (c.contracts || []).filter(function(k){ return k.kind === 'sale' && k.status === 'pending' && !k.signatures.some(function(s){ return s.kind === 'seller' || s.kind === 'agent'; }); })[0]; }
 function pendingMandate(c){ return c.actor === 'seller' && (c.mandates || []).some(function(m){ return !m.signedAt && !m.revokedAt; }); }
 function idDoneFor(id){ var c = cases.filter(function(x){ return x.id === id; })[0]; return !c || !c.identity || c.identity.done; }
+var IDTYPES = [
+  ['menkyo', '運転免許証', '裏面に住所の変更などの記載がある場合は、2枚目に裏面もお送りください。'],
+  ['mynumber', 'マイナンバーカード', '表面だけをお送りください。裏面（12桁の個人番号）は撮影・送信しないでください。'],
+  ['keireki', '運転経歴証明書', '裏面に住所の変更などの記載がある場合は、2枚目に裏面もお送りください。'],
+  ['hoken', '健康保険の資格確認書・保険証', '保険者番号と記号・番号の部分は、紙などで隠して撮影してください。お名前・ご住所・生年月日は隠さないでください。'],
+  ['zairyu', '在留カード・特別永住者証明書', '裏面に住居地の記載がある場合は、2枚目に裏面もお送りください。'],
+  ['passport', 'パスポート（住所の記載があるもの）', '2020年2月以降に発行されたパスポートには住所を書く欄がないため、ご本人確認に使えません。その場合は他の身分証明書をお選びください。'],
+  ['other', 'その他の公的な身分証明書', 'お名前・ご住所・生年月日が記載された、公的機関が発行したものをお送りください。']
+];
+function idTip(v){ var x = IDTYPES.filter(function(y){ return y[0] === v; })[0]; return x ? x[2] : '種類を選ぶと、撮影の注意が表示されます。'; }
+document.addEventListener('change', function(e){
+  var f = e.target.closest && e.target.closest('form[data-do=identity]'); if(!f) return;
+  if(e.target.name === 'idType'){ var tp = f.querySelector('[data-idtip]'); if(tp) tp.textContent = idTip(e.target.value); }
+  if(e.target.name === 'idFront' || e.target.name === 'idBack' || e.target.name === 'idType'){
+    var s = f.querySelector('[data-idsel]'), ty = f.querySelector('[name=idType]').value, fr = f.querySelector('[name=idFront]').files[0], bk = f.querySelector('[name=idBack]').files[0];
+    if(s){ s.hidden = !(fr || bk); s.textContent = '送信の前にご確認ください：' + (fr ? '1枚目（表面）を選択済み。' : '1枚目（表面）がまだです。') + (bk ? '2枚目（裏面）を選択済み。' : '') + (ty === 'mynumber' && bk ? '※マイナンバーカードの裏面（個人番号）は送らないでください。2枚目を外してください。' : '') + ' ' + idTip(ty); }
+  }
+});
 function tasks(c){
   var T = [], st = c.status, idc = c.identity || {}, pr = c.pickupRequest, pk = c.pickup;
   var mm = c.myMandates || [], live = mm.filter(function(m){ return !m.revokedAt && (!m.validUntil || new Date(m.validUntil) > new Date()); });
@@ -94,7 +112,7 @@ function tasks(c){
   if(c.actor === 'agent' && pendingM) T.push({ key:'wait', title:'ご本人の署名をお待ちください', desc:'ご本人に「委任状のご確認」のメールを送りました。届いていない場合は、受付番号 ' + c.receiptNo + ' をお伝えのうえ、お客様用画面の「契約・書類」から署名いただくようご案内ください。' });
   if(c.actor === 'agent' && live.length && !pendingM && !c.mandateActive && (idc.agentRequested || idc.agentDone)) T.push({ key:'wait', title:'委任が有効になるのをお待ちください', desc:'売主ご本人の委任状への署名と、代理の方の本人確認が済むと、お手続きを進められます。' });
   if(pendingMandate(c)) T.push({ key:'link', title:'委任状に署名する', desc:'代理の方に任せる範囲をご確認のうえ、ご本人が署名してください。', href:'documents' });
-  if(c.actor === 'seller' && !idc.done && !idc.requested && EARLY.concat(['goods_received','appraising','appraisal_notified','approved','partially_approved']).indexOf(st) >= 0) T.push({ key:'identity', title:'ご本人確認の情報を送る', desc:'古物営業法により、買取の前にご本人確認が必要です。お名前・ご住所などと、身分証明書の画像（表・裏）をお送りください。' });
+  if(c.actor === 'seller' && !idc.done && !idc.requested && EARLY.concat(['goods_received','appraising','appraisal_notified','approved','partially_approved']).indexOf(st) >= 0) T.push({ key:'identity', title:'ご本人確認の情報を送る', desc:'古物営業法により、買取の前にご本人確認が必要です。お名前・ご住所などと、身分証明書の画像（表面。裏面は必要な場合のみ）をお送りください。' });
   if(canPickup(c) && !pr && !pk && EARLY.indexOf(st) >= 0) T.push({ key:'pickup', title:'集荷の方法と日時を選ぶ', desc:'梱包キットのお届け、ご自身での発送、直接集荷のご相談からお選びください。' });
   if(canPickup(c) && pr && (pr.method === 'kit' || pr.method === 'self_ship') && !pr.trackingNo && !(pk && pk.receivedAt)) T.push({ key:'tracking', title:'発送したら伝票番号を入力する', desc: pr.method === 'kit' ? '梱包キットが届いたら、お品物を入れて発送し、伝票番号をお知らせください。' : 'お品物を発送したら、伝票番号をお知らせください。到着を確認しやすくなります。' });
   if(c.appraisal && c.appraisal.status === 'notified' && !expired(c.appraisal)) T.push({ key:'link', title:'査定結果を確認して回答する', desc:'お品物ごとに「売る」か「返却」を選び、そのまま契約まで進めます。回答期限は ' + dt(c.appraisal.expiresAt) + ' です。', href:'result' });
@@ -132,9 +150,12 @@ function taskForm(c, t){
     + field(id + '-address', 'ご住所（住民票どおり）', inp(id + '-address', { req:1, ac:'street-address' }), 'ご本人確認のための郵便をお送りします。')
     + field(id + '-tel', '電話番号', inp(id + '-tel', { type:'tel', ac:'tel', mode:'tel' }))
     + '<input type="hidden" name="method" value="mibun_copy_kakitome_koza">'
-    + '<div class="field"><span class="lbl">身分証明書の画像（表・裏）</span><p class="hint">運転免許証は表と裏、マイナンバーカードは表面だけ（裏面の個人番号は写さないでください）をお送りください。お名前・ご住所・生年月日が読めるように撮影してください。画像は担当者だけが確認します。</p>'
-    + '<label for="' + id + '-idFront">表面</label><input type="file" id="' + id + '-idFront" name="idFront" accept="image/*">'
-    + '<label for="' + id + '-idBack" style="margin-top:8px;display:block">裏面（運転免許証など、裏にも記載がある場合）</label><input type="file" id="' + id + '-idBack" name="idBack" accept="image/*"></div>'
+    + field(id + '-idType', '身分証明書の種類', '<select id="' + id + '-idType" name="idType" required><option value="">選んでください</option>' + IDTYPES.map(function(x){ return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join('') + '</select>')
+    + '<div class="field"><span class="lbl">身分証明書の画像</span>'
+    + '<div class="pidnote" data-idnote><b>お送りいただく前に</b><ul><li>有効期限内のものをお送りください。</li><li>お名前・ご住所・生年月日がはっきり読めるよう、四隅まで全体を写してください（光の反射・ぼやけにご注意ください）。</li><li>画像の加工や、一部を切り取ることはしないでください（下の「隠す部分」を除きます）。</li></ul><p data-idtip>種類を選ぶと、撮影の注意が表示されます。</p></div>'
+    + '<label for="' + id + '-idFront">1枚目（表面）<span class="req">必須</span></label><input type="file" id="' + id + '-idFront" name="idFront" accept="image/*">'
+    + '<label for="' + id + '-idBack" style="margin-top:8px;display:block">2枚目（裏面）<span class="opt">任意</span></label><input type="file" id="' + id + '-idBack" name="idBack" accept="image/*"><p class="hint">裏面は、住所の変更などが裏に書かれている場合にお送りください。画像は担当者だけが確認します。</p>'
+    + '<p class="alert" data-idsel hidden></p></div>'
     + '<p class="hint">確認の流れ：①画像をお送りいただく → ②ご住所あてに「転送不要」の簡易書留をお送りします（ご本人またはご家族の方がお受け取りください）→ ③届いたことを確認して完了です。買取代金は、確認したお名前と同じ名義の口座にだけお振込みします。</p>'
     + '<div class="btns"><button class="btn" type="submit">確認情報を送る</button></div></form>';
   if(t.key === 'pickup') f = '<form class="ptask-f" data-do="pickup" novalidate>' + TRIAL_NOTE
@@ -266,8 +287,10 @@ function vStatus(){
     try{
       if(f.dataset.do === 'identity'){
         if(!d.fullName || !d.address || !d.birthdate) throw new Error('お名前・生年月日・ご住所を入力してください');
-        var imgs = [d.idFront, d.idBack].filter(function(x){ return x && x.size; }); delete d.idFront; delete d.idBack;
-        if(!imgs.length) throw new Error('身分証明書（表面）の画像を選んでください');
+        var fr = d.idFront && d.idFront.size ? d.idFront : null, bk = d.idBack && d.idBack.size ? d.idBack : null, imgs = [fr, bk].filter(Boolean); delete d.idFront; delete d.idBack;
+        if(!d.idType) throw new Error('身分証明書の種類を選んでください');
+        if(!fr) throw new Error('1枚目（表面）の画像を選んでください');
+        if(d.idType === 'mynumber' && bk) throw new Error('マイナンバーカードの裏面（個人番号）は送らないでください。2枚目の画像を外してから送信してください');
         if(imgs.some(function(x){ return x.size > 8388608; })) throw new Error('画像は1枚8MBまでです');
         btn.dataset.t = btn.textContent; btn.disabled = true; btn.textContent = '画像を送っています…';
         d.files = [];

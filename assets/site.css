@@ -641,3 +641,7 @@ body[data-page="status"] .sec:first-of-type,body[data-page="result"] .sec,body[d
   body{padding-bottom:72px}
 }
 body.hp-typing .hp-btn{opacity:0;pointer-events:none;transition:opacity .2s}
+/* 身分証の画像：送信前の注意 */
+.pidnote{margin:6px 0 12px;padding:12px 14px;border:1px solid var(--gold-line);background:rgba(200,174,125,.06);font-size:.88rem;line-height:1.7}
+.pidnote ul{margin:6px 0;padding-left:1.2em}
+.pidnote [data-idtip]{margin:6px 0 0;color:var(--gold-hi)}
