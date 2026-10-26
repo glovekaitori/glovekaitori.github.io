@@ -116,8 +116,19 @@ function setNavCount(key, n){
   var b = a.querySelector('.cnt'); if(n && !b){ b = document.createElement('span'); b.className = 'cnt'; b.title = '未対応'; a.appendChild(b); }
   if(b){ if(n) b.textContent = n; else b.remove(); }
 }
+// 管理画面のプログラムが更新されたら、開いたままの画面に「再読み込み」の案内を出す
+var MY_VER = (function(){ var sc = document.querySelector('script[src*="admin.js"]'); var m = sc && sc.getAttribute('src').match(/v=(\w+)/); return m ? m[1] : ''; })(), VER_SHOWN = false;
+async function checkVersion(){
+  if(!MY_VER || VER_SHOWN) return;
+  try{ var h = await (await fetch('./?nv=' + Date.now(), { cache: 'no-store' })).text(), m = h.match(/admin\.js\?v=(\w+)/);
+    if(m && m[1] !== MY_VER){ VER_SHOWN = true; var d = document.createElement('div'); d.className = 'upd-bar';
+      d.innerHTML = '管理画面が新しくなりました。<button class="btn sm" type="button">再読み込みする</button>'; d.querySelector('button').onclick = function(){ location.reload(); };
+      d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:999;background:#3a2f12;color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font-size:14px';
+      document.body.appendChild(d); } }catch(e){}
+}
 async function refreshBadges(){
   if(document.hidden) return;
+  checkVersion();
   try{ var r = await GL.rpc('staff_badges', {}); if(!r) return; S.badges = r;
     setNavCount('cases', r.cases); setNavCount('contacts', r.contacts); setNavCount('payments', r.payments);
     var total = (r.cases || 0) + (r.contacts || 0) + (S.waiting || 0);
