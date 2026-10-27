@@ -470,6 +470,8 @@ body.has-nxbar .hp-btn{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 .pdates{display:grid;gap:8px}
 .pdate{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:8px}
 .prest{border-left:1px solid var(--gold-line);padding-left:16px}
+.pmres{border:1px solid var(--gold-line);background:rgba(200,174,125,.06);padding:16px 18px;display:grid;gap:8px;margin-top:12px}
+.pmres .pmeta{color:var(--gold-hi,#e6d3a8);font-weight:700}
 .prest ul{margin:4px 0 0;padding-left:1.2em;color:var(--on-dark-mute);font-size:.9rem}
 .psummary{border:1px solid var(--gold-line);background:var(--ink-bg);padding:18px 22px;margin-bottom:24px;display:grid;gap:8px}
 .psummary .eyebrow{font-family:var(--f-latin);color:var(--gold);letter-spacing:.4em;font-size:.75rem}

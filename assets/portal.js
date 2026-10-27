@@ -110,7 +110,7 @@ function tasks(c){
   if(c.actor === 'agent' && !live.length) T.push({ key:'mandate', title: mm.length ? '委任状を作り直して、ご本人に署名を依頼する' : '委任状を作成して、ご本人に署名を依頼する', desc: mm.length ? '前の委任は取り消されたか、期限が切れています。続けてお手続きするには、新しい委任状が必要です。' : 'ご本人の代わりにお手続きするには、委任状が必要です。作成するとご本人にメールで署名をお願いします。' });
   if(c.actor === 'agent' && pendingM && !pendingM.accepted) T.push({ key:'link', title:'受任者として委任状に署名する', desc:'担当者が用意した委任状です。内容をご確認のうえ、受任者として署名してください。', href:'documents' });
   if(c.actor === 'agent' && !idc.agentDone && !idc.agentRequested) T.push({ key:'identity', title:'代理の方ご自身の確認情報を送る', desc:'代理の方の本人確認が済むと、委任が有効になります。' });
-  if(c.actor === 'agent' && pendingM) T.push({ key:'wait', title:'ご本人の署名をお待ちください', desc:'ご本人に「委任状のご確認」のメールを送りました。届いていない場合は、受付番号 ' + c.receiptNo + ' をお伝えのうえ、お客様用画面の「契約・書類」から署名いただくようご案内ください。' });
+  if(c.actor === 'agent' && pendingM) T.push({ key:'mwait', title:'ご本人の署名をお待ちください', desc:'ご本人に「委任状のご確認」のメールを送りました。メールのボタンを押すと、そのまま署名の画面が開きます。届いていない・見落とされている場合は、下のボタンでもう一度お送りするか、ご案内の文章をコピーして LINE などでご本人にお伝えください。' });
   if(c.actor === 'agent' && live.length && !pendingM && !c.mandateActive && (idc.agentRequested || idc.agentDone)) T.push({ key:'wait', title:'委任が有効になるのをお待ちください', desc:'売主ご本人の委任状への署名と、代理の方の本人確認が済むと、お手続きを進められます。' });
   if(pendingMandate(c)) T.push({ key:'link', title:'委任状に署名する', desc:'代理の方に任せる範囲をご確認のうえ、ご本人が署名してください。', href:'documents' });
   if(c.actor === 'seller' && !idc.done && !idc.requested && EARLY.concat(['goods_received','appraising','appraisal_notified','approved','partially_approved']).indexOf(st) >= 0) T.push({ key:'identity', title:'ご本人確認の情報を送る', desc:'古物営業法により、買取の前にご本人確認が必要です。お名前・ご住所などと、身分証明書の画像（表面。裏面は必要な場合のみ）をお送りください。' });
@@ -192,6 +192,9 @@ function taskForm(c, t){
     + '<label class="choices" style="display:block"><span style="display:inline-flex;gap:10px;align-items:center"><input type="checkbox" name="agree" value="1"> 上記の内容に同意し、受任者として電子署名します</span></label>'
     + '<div class="btns"><button class="btn" type="submit">署名して、ご本人に署名を依頼する</button></div></form>';
   if(t.key === 'link') f = '<div class="btns"><a class="btn" href="' + PRE + t.href + '/">' + esc(t.title) + '</a></div>';
+  // 代理の方：ご本人へ委任状の署名を依頼する（メールの再送・LINE などで送る文章のコピー）
+  if(t.key === 'mwait') f = '<form class="ptask-f" data-do="mresend" novalidate><div class="btns"><button class="btn" type="submit">ご本人へ依頼メールをもう一度送る</button><button class="btn ghost" type="button" data-mcopy="' + esc(c.receiptNo) + '">ご案内の文章をコピー（LINE・SMS用）</button></div>'
+    + '<p class="hint">メールは、登録済みの売主ご本人のメールアドレスにだけ送られます（5分に1回・1日4通まで）。</p></form>';
   return f;
 }
 function mandatePreview(f, c){
@@ -224,6 +227,7 @@ function navCard(c){
     + '<h3>' + esc(now.title) + '</h3>'
     + '<p class="nx-step">全' + STEPS.length + '段階のうち <b>' + (cur + 1) + '段階目</b>（' + esc(STEPS[cur]) + '）</p>'
     + '<p>' + esc(now.desc) + '</p>' + taskForm(c, now) + '</section>'
+    + (now.key !== 'mwait' && T.some(function(t){ return t.key === 'mwait'; }) ? '<div class="pmres"><p class="pmeta">ご本人への委任状の署名のお願い</p><p>ご本人の署名をお待ちしています。メールが届いていない・見落とされている場合は、もう一度お送りするか、ご案内の文章を LINE などでお伝えください。</p>' + taskForm(c, { key: 'mwait' }) + '</div>' : '')
     + (rest.length ? '<div class="prest"><p class="pmeta">このあとのお手続き</p><ul>' + rest.map(function(t){ return '<li>' + esc(t.title) + '</li>'; }).join('') + '</ul></div>' : '');
 }
 function msgBox(c){
@@ -295,6 +299,11 @@ function vStatus(){
     var up = function(){ pv.textContent = mandatePreview(f, c); }; up(); f.addEventListener('input', up); f.addEventListener('change', up);
   });
   $('#pv').onclick = async function(e){
+    var mc = e.target.closest('[data-mcopy]');
+    if(mc){ var site = location.origin + location.pathname.replace(/(status|result|documents)\/?.*$/, '');
+      var txt = '【G-LOVE】委任状へのご署名のお願い\n\nお品物の買取のお手続きを、私（代理）が進めるため、委任状へのご署名をお願いします。\n\nご本人あてに「委任状のご確認」というメールが G-LOVE（infokaitorid@gmail.com）から届いています。メールのボタンを押すと、そのまま署名の画面が開きます（パスワードは不要です）。\n\nメールが見つからない場合は、次の画面で、ご登録のメールアドレスを入れて開いてください。\n' + site + 'documents/\n\n受付番号：' + mc.dataset.mcopy + '\n※ 任せる範囲と期限は、署名の画面でご確認いただけます。内容に心当たりがない場合は、署名しないでください。';
+      try{ await navigator.clipboard.writeText(txt); msg('ご案内の文章をコピーしました。LINE や SMS に貼り付けて、ご本人へお送りください。'); }
+      catch(x){ window.prompt('次の文章をコピーしてください', txt); } return; }
     var nb = e.target.closest('[data-nda]');
     if(nb){ nb.disabled = true; try{ await GL.rpc('portal_request_nda', { p_app: nb.closest('[data-case]').dataset.case }); await load(); msg('秘密保持契約のご希望を担当者へお伝えしました。'); }catch(x){ msg(x.message, true); nb.disabled = false; } return; }
     var b = e.target.closest('[data-revoke]'); if(!b) return;
@@ -333,6 +342,7 @@ function vStatus(){
         call = ['portal_request_mandate', { p_app: app, p: { agentName: d.agentName, agentOrg: d.agentOrg, sellerName: d.sellerName, sellerEmail: d.sellerEmail, pickup: !!d.pickup, documents: !!d.documents, approve: !!d.approve, sign: !!d.sign, validUntil: d.validUntil ? d.validUntil + 'T23:59:59+09:00' : '', agree: true } }];
         done = '委任状に署名し、ご本人へ署名のお願いを送りました。ご本人の署名と、代理の方の本人確認が済むと委任が有効になります。';
       }
+      if(f.dataset.do === 'mresend'){ btn.disabled = true; var to = await GL.rpc('portal_resend_mandate', { p_app: app }); btn.disabled = false; msg('ご本人（' + to + '）へ「委任状のご確認」のメールをもう一度お送りしました。'); return; }
       if(f.dataset.do === 'message'){ if(!d.body) throw new Error('メッセージを入力してください'); call = ['portal_send_message', { p_app: app, p_body: d.body }]; done = '担当者へ送信しました。'; }
       btn.disabled = true;
       await GL.rpc(call[0], call[1]); await load(); msg(done);
