@@ -699,3 +699,22 @@ body.hp-typing .hp-btn{opacity:0;pointer-events:none;transition:opacity .2s}
 .none-chk input{width:20px;height:20px}
 /* 項目の通し番号 */
 .fno{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;margin-right:8px;padding:0 6px;border-radius:12px;background:var(--gold);color:var(--black);font-size:.8rem;font-weight:500;vertical-align:middle}
+/* リピーターのお客様：お取引の切り替えと過去のお取引 */
+#psw{margin:0 0 18px}
+.psw-act,.psw-one,.psw-past{border:1px solid var(--gold-line);background:var(--ink-bg,rgba(255,255,255,.02));padding:14px 16px;display:grid;gap:10px}
+.psw-past{border:2px solid var(--gold-hi,#e6d3a8);background:rgba(200,174,125,.1)}
+.psw-past p{margin:0}
+.psw-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.psw-i{display:grid;gap:4px;text-align:left;padding:12px 14px;min-height:56px;border:1px solid var(--grey-2,#555);background:transparent;color:var(--white);font:inherit;cursor:pointer}
+.psw-i b{font-size:1rem;letter-spacing:.04em}
+.psw-i small,.ppast small{display:block;font-weight:400;font-size:.8rem;color:var(--on-dark-mute)}
+.psw-i.on{border:2px solid var(--gold-hi,#e6d3a8);background:rgba(200,174,125,.14)}
+.psw-st{font-size:.85rem;color:var(--on-dark)}
+.psw-st em{font-style:normal;margin-left:8px;padding:1px 8px;border-radius:999px;background:#b3261e;color:#fff;font-size:.75rem;font-weight:700}
+.ppast{margin-top:28px;border:1px solid var(--grey-2,#555);padding:0}
+.ppast summary{cursor:pointer;padding:14px 16px;font-size:.95rem;color:var(--on-dark)}
+.ppast ul{list-style:none;margin:0;padding:0 16px 12px;display:grid;gap:6px}
+.ppast li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--grey,#333);font-size:.92rem}
+.ppast li.on{color:var(--gold-hi,#e6d3a8)}
+.ppast .btn{min-height:40px;padding-inline:16px}
+@media (max-width:520px){.ppast li{grid-template-columns:1fr auto}.ppast li .psw-st{grid-column:1}}

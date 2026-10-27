@@ -19,7 +19,36 @@ var CK = { sale:'売買契約書', mandate:'委任状', nda:'秘密保持契約�
 var EV = { withdrawn:'契約の前に辞退', nda_requested:'秘密保持契約を希望', mandate_requested:'委任状を作成して署名を依頼', mandate_accepted:'受任者として委任状に署名', identity_submitted:'本人確認の情報を送信', pickup_requested:'集荷を依頼', shipped:'発送', bank_registered:'振込先を登録', return_address:'返却先を確認', appraisal_answered:'査定に回答', contract_signed:'書類に署名', mandate_signed:'委任状に署名', mandate_revoked:'委任を撤回' };
 
 GL.useStore('gl-portal', true);
-var cases = [];
+var cases = [], ALL = [], SEL = null;
+// ── リピーターのお客様：お取引ごとに分けて表示する ──
+//   画面には1件のお取引だけを出す。進行中が複数あれば上で切り替え、終わったお取引は「過去のお取引」にまとめて畳む
+var DONE_ST = ['paid','closed','cancelled','returned'];
+function isDone(c){ return DONE_ST.indexOf(c.status) >= 0; }
+function needsMe(c){ try{ return ACT_KEYS.indexOf(tasks(c)[0].key) >= 0; }catch(e){ return false; } }
+function pickCase(){
+  var want = null, h = /^#c-([0-9a-f]{8})$/.exec(location.hash);
+  if(h) want = h[1]; else { try{ want = sessionStorage.getItem('gl-sel'); }catch(e){} }
+  var hit = ALL.filter(function(c){ return want && c.id.slice(0, 8) === want; })[0];
+  var act = ALL.filter(function(c){ return !isDone(c); });
+  SEL = hit || act.filter(needsMe)[0] || act[0] || ALL[0] || null;
+  cases = SEL ? [SEL] : [];
+}
+function selectCase(id8){ try{ sessionStorage.setItem('gl-sel', id8); }catch(e){} if(location.hash) history.replaceState(null, '', location.pathname); load().then(function(){ window.scrollTo({ top: 0, behavior: 'smooth' }); }); }
+function caseLabel(c){ return esc(c.receiptNo) + '<small>' + (c.createdAt ? new Date(c.createdAt).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }) + ' お申込み' : '') + ((c.categories || []).length ? '・' + esc(c.categories.join('、')) : '') + '</small>'; }
+function caseNav(){
+  ['psw','ppast'].forEach(function(id){ var o = document.getElementById(id); if(o) o.remove(); });
+  if(ALL.length < 2 || !SEL) return;
+  var pv = $('#pv'), act = ALL.filter(function(c){ return !isDone(c); }), past = ALL.filter(isDone), top = '';
+  if(isDone(SEL)) top = '<div class="psw-past"><p><b>過去のお取引を表示しています</b>（受付番号 ' + esc(SEL.receiptNo) + '・' + esc(STATUS[SEL.status] || SEL.status) + '）</p>' + (act.length ? '<button type="button" class="btn" data-sel="' + (act.filter(needsMe)[0] || act[0]).id.slice(0, 8) + '">現在のお取引に戻る</button>' : '') + '</div>';
+  else if(act.length > 1) top = '<div class="psw-act"><p class="pmeta">現在のお取引（' + act.length + '件）　見たいお取引を選んでください</p><div class="psw-list">' + act.map(function(c){ var on = c.id === SEL.id, nd = needsMe(c);
+      return '<button type="button" class="psw-i' + (on ? ' on' : '') + '" data-sel="' + c.id.slice(0, 8) + '"' + (on ? ' aria-current="true"' : '') + '><b>' + caseLabel(c) + '</b><span class="psw-st">' + esc(STATUS[c.status] || c.status) + (nd ? '<em>要対応</em>' : '') + '</span></button>'; }).join('') + '</div></div>';
+  else top = '<div class="psw-one"><p class="pmeta">表示中のお取引：受付番号 <b>' + esc(SEL.receiptNo) + '</b>（' + (SEL.createdAt ? new Date(SEL.createdAt).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }) + ' お申込み' : '') + '）　以前のお取引は、画面のいちばん下の「過去のお取引」にまとめています。</p></div>';
+  var a = document.createElement('div'); a.id = 'psw'; a.innerHTML = top; pv.parentNode.insertBefore(a, pv);
+  if(past.length){ var b = document.createElement('details'); b.id = 'ppast'; b.className = 'ppast'; if(isDone(SEL)) b.open = true;
+    b.innerHTML = '<summary>過去のお取引（' + past.length + '件）</summary><ul>' + past.map(function(c){ return '<li' + (c.id === SEL.id ? ' class="on"' : '') + '><span>' + caseLabel(c) + '</span><span class="psw-st">' + esc(STATUS[c.status] || c.status) + (c.paid ? '（' + yen(c.paid.amount) + '）' : '') + '</span>' + (c.id === SEL.id ? '<span class="pmeta">表示中</span>' : '<button type="button" class="btn ghost" data-sel="' + c.id.slice(0, 8) + '">見る</button>') + '</li>'; }).join('') + '</ul>';
+    pv.parentNode.insertBefore(b, pv.nextSibling); }
+  [a, document.getElementById('ppast')].forEach(function(el){ if(el) el.onclick = function(e){ var t = e.target.closest('[data-sel]'); if(t) selectCase(t.dataset.sel); }; });
+}
 function msg(t, bad){ var m = $('#pmsg'); m.className = bad ? 'alert' : 'note'; m.hidden = !t; m.textContent = t || ''; if(t) m.scrollIntoView({ block:'nearest' }); }
 
 // ── ログイン（メールアドレスだけ。メールのボタンを押すとログイン。この端末では次回からログイン不要） ──
@@ -60,13 +89,15 @@ async function enter(){
 
 // ── ログイン後 ──
 async function load(){
-  cases = await GL.rpc('portal_cases', {});
+  ALL = await GL.rpc('portal_cases', {});
+  pickCase();
   var tabs = [['status','お手続き'],['result','査定結果'],['documents','契約・書類']];
   box.innerHTML = '<div class="ptabs">' + tabs.map(function(t){ return '<a href="' + PRE + t[0] + '/"' + (t[0] === VIEW ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('')
     + '<button class="btn ghost" type="button" id="p-out">ログアウト</button></div><p class="ptab-help">' + ({ status:'金色の太い枠が「次にやること」です。枠の中で入力して送ると、次の手順に進みます（画面の下にも表示されます）。', result:'お品物ごとに「売る」か「返却」を選び、「次へ（内容の確認）」を押してください。契約書を確認し、4つの項目にチェックを入れて署名すると、売買契約まで完了します。', documents:'書類を読み、「同意」にチェックしてから電子署名してください。印刷やPDFでの保存もできます。' })[VIEW] + '</p><div id="pmsg" hidden role="status"></div><div id="pv"></div>';
   $('#p-out').onclick = async function(){ var b = this; if(!b.dataset.sure){ b.dataset.sure = '1'; b.textContent = 'もう一度押すとログアウト'; return; } await GL.signOut(); viewLogin(); msg('ログアウトしました。次は、お知らせメールのボタンから開けます'); };
   if(!cases.length){ $('#pv').innerHTML = '<p class="note">このメールアドレスのお取引は見つかりませんでした。お申込みのときのメールアドレスでログインしてください（代理の方は、委任状に登録されたメールアドレス）。</p>'; return; }
   ({ status: vStatus, result: vResult, documents: vDocs })[VIEW]();
+  caseNav();
   nextBar();
   if(/^#c-[0-9a-f]{8}$/.test(location.hash)) setTimeout(function(){ var el = document.querySelector(location.hash); if(el) el.scrollIntoView({ block: 'start' }); }, 150);
 }
