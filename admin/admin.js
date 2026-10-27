@@ -724,10 +724,17 @@ async function viewAudit(){ var my = S.seq;
 }
 
 async function viewAccount(){ var my = S.seq;
-  if(my !== S.seq) return; $('#main').innerHTML = top('パスワード変更') + '<div class="card" style="max-width:520px"><div class="in"><form class="f" id="pw"><label class="l">新しいパスワード（12文字以上）<input type="password" name="p1" minlength="12" autocomplete="new-password" required></label><label class="l">もう一度<input type="password" name="p2" minlength="12" autocomplete="new-password" required></label><p class="err" id="pw-err"></p><div class="btns"><button class="btn sm">変更する</button></div></form></div></div>';
+  if(my !== S.seq) return; $('#main').innerHTML = top('パスワード変更') + '<div class="card" style="max-width:520px"><div class="in"><form class="f" id="pw"><label class="l">新しいパスワード（12文字以上）<input type="password" name="p1" minlength="12" autocomplete="new-password" required></label><label class="l">もう一度<input type="password" name="p2" minlength="12" autocomplete="new-password" required></label><div id="pw-mfa" hidden><p class="note" style="margin:0">このアカウントには二段階認証（認証アプリ）が登録されています。パスワードを変えるには、認証アプリに表示されている6桁のコードも入力してください。</p><label class="l">認証アプリの6桁のコード<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}"></label></div><p class="err" id="pw-err"></p><div class="btns"><button class="btn sm">変更する</button></div></form></div></div>';
   $('#pw').addEventListener('submit', async function(e){ e.preventDefault(); var d = formData(e.target), er = $('#pw-err'); er.textContent = '';
     if(d.p1.length < 12) return er.textContent = '12文字以上にしてください'; if(d.p1 !== d.p2) return er.textContent = '2回の入力が一致しません';
-    try{ await GL.setPassword(d.p1); e.target.reset(); toast('パスワードを変更しました'); }catch(x){ er.textContent = x.message; } });
+    var box = $('#pw-mfa');
+    try{
+      // 二段階認証が登録されているアカウントは、6桁のコードで本人確認してからでないとパスワードを変えられない（Supabaseの決まり）
+      if(GL.aal() !== 'aal2'){ var fs = []; try{ fs = (await GL.mfaFactors()).filter(function(f){ return f.status === 'verified'; }); }catch(y){}
+        if(fs.length){ if(box.hidden || !/^[0-9]{6}$/.test(d.code || '')){ box.hidden = false; e.target.querySelector('[name=code]').focus(); return er.textContent = box.hidden ? '' : '認証アプリの6桁のコードを入力して、もう一度「変更する」を押してください'; }
+          try{ await GL.mfaVerify(fs[0].id, d.code); }catch(y){ return er.textContent = /invalid|expired/i.test(y.message) ? 'コードが違うか、時間切れです。認証アプリの新しいコードを入れてください' : y.message; } } }
+      await GL.setPassword(d.p1); e.target.reset(); box.hidden = true; toast('パスワードを変更しました');
+    }catch(x){ er.textContent = /AAL2|MFA/i.test(x.message) ? '二段階認証の確認が必要です。認証アプリの6桁のコードを入力してください' : x.message; if(/AAL2|MFA/i.test(x.message)) box.hidden = false; } });
 }
 var BK_TABLES = ['price_refs','support_faq','support_cat','resales','identity_requests','pickup_requests','return_requests','messages','support_threads','support_messages','staff','referral_codes','customers','applications','application_notes','contacts','mandates','identity_checks','pickups','items','appraisals','appraisal_lines','approvals','contracts','contract_signatures','bank_accounts','payments','returns','notifications','portal_events','audit_log','view_log'];
 async function viewBackup(){ var my = S.seq;
