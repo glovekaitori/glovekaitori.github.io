@@ -66,3 +66,28 @@ window.gloveCall=async function(fn,args){
   try{ return {ok:true,data:await GL.rpc(fn,args,true)}; }
   catch(e){ return {ok:false,reason:e.code||'error',message:e.message}; }
 };
+
+// お手続き中のお取引があるお客様には、どのページにも「お手続きに戻る」を常に出す
+//   この端末でお手続き画面にログインしたことがある場合だけ確かめる（3分ごとに確認）
+(function(){
+  var d=document, pg=d.body&&d.body.getAttribute('data-page')||'';
+  if(/^(status|result|documents)$/.test(pg)||/\/admin\//.test(location.pathname)) return;
+  var saved=null; try{saved=localStorage.getItem('gl-portal');}catch(e){}
+  if(!saved||!window.GL||!GL.configured) return;
+  var cta=d.querySelector('.nav .cta'), base=cta?cta.getAttribute('href').replace(/apply\/?$/,''):'/';
+  var show=function(n){
+    if(!n) return;
+    var nav=d.getElementById('gnav');
+    if(nav&&!d.getElementById('ret-nav')){var a=d.createElement('a');a.id='ret-nav';a.className='cta-ret';a.href=base+'status/';a.textContent='お手続きに戻る';nav.insertBefore(a,cta||null);}
+    if(!d.getElementById('ret-pill')){var p=d.createElement('a');p.id='ret-pill';p.href=base+'status/';p.innerHTML='<span class="rp-dot"></span><span>お手続き中のお取引があります</span><b>お手続きに戻る →</b>';d.body.appendChild(p);d.body.classList.add('has-ret');}
+  };
+  var c=null; try{c=JSON.parse(sessionStorage.getItem('gl-active')||'null');}catch(e){}
+  if(c&&Date.now()-c.at<180000){show(c.n);return;}
+  (async function(){
+    try{ GL.useStore('gl-portal',true); if(!GL.session) return;
+      var cs=await GL.rpc('portal_cases',{}), n=(cs||[]).filter(function(x){return ['paid','closed','cancelled','returned'].indexOf(x.status)<0;}).length;
+      try{sessionStorage.setItem('gl-active',JSON.stringify({n:n,at:Date.now()}));}catch(e){}
+      show(n);
+    }catch(e){}
+  })();
+})();
