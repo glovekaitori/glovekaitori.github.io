@@ -154,7 +154,8 @@ async function route(){
 }
 
 // ============ 案件一覧 ============
-async function viewCases(){ var my = S.seq;
+var DEL = { on: false, sel: {} };
+async function viewCases(){ var my = S.seq; DEL = { on: false, sel: {} };
   await refreshBadges();
   var apps = await GL.select('applications', { order: 'created_at.desc', limit: 500 });
   var ids = apps.map(function(a){ return a.customer_id; });
@@ -167,7 +168,8 @@ async function viewCases(){ var my = S.seq;
   if(my !== S.seq) return; $('#main').innerHTML = top('案件', '<span class="pill">' + apps.length + '件</span>')
     + '<div class="filters"><input id="q" placeholder="受付番号・名前で探す" style="min-width:220px"><select id="st"><option value="">すべての状態</option>'
     + Object.keys(STATUS).map(function(k){ return '<option value="' + k + '">' + STATUS[k][0] + (counts[k] ? '（' + counts[k] + '）' : '') + '</option>'; }).join('') + '</select>'
-    + '<label class="chk" style="align-items:center"><label><input type="checkbox" id="open" checked>完了・取消を除く</label></label></div>'
+    + '<label class="chk" style="align-items:center"><label><input type="checkbox" id="open" checked>完了・取消を除く</label></label>' + (can() ? '<button class="btn sub sm" type="button" id="del-mode">テストの案件を削除する</button>' : '') + '</div>'
+    + (can() ? '<div class="card del-box" id="del-box" hidden><div class="in"><p class="note bad" style="margin:0"><b>テストで作った案件だけを削除してください。</b>実際のお取引は、古物営業法により記録の保存が必要なため削除しないでください。削除すると、写真以外の記録（本人確認・契約・振込・連絡など）がすべて消え、元に戻せません。削除した受付番号は操作履歴に残ります。</p><p style="margin:0">一覧の左のチェックで、削除する案件を選んでください。<b id="del-n">0</b>件を選択中</p><div class="btns"><input id="del-word" placeholder="確認のため「削除」と入力" style="width:220px"><button class="btn sm danger" type="button" id="del-run">選んだ案件を削除する</button><button class="btn sub sm" type="button" id="del-cancel">やめる</button></div></div></div>' : '')
     + '<div class="card"><div class="tw"><table><thead><tr><th>受付番号</th><th>受付日時</th><th>申込者</th><th>区分</th><th>売主</th><th>品物</th><th>地域</th><th>状態</th><th>担当</th></tr></thead><tbody id="tb"></tbody></table></div></div>';
   var sm = {}; S.staff.forEach(function(s){ sm[s.user_id] = s.name; });
   function draw(){
@@ -179,11 +181,22 @@ async function viewCases(){ var my = S.seq;
       return true;
     });
     $('#tb').innerHTML = rows.length ? rows.map(function(a){ var c = cm[a.customer_id] || {};
-      return '<tr class="click" data-id="' + a.id + '" tabindex="0"><td class="mono">' + esc(a.receipt_no) + (a.trial ? ' <span class="pill warn">試験</span>' : '') + (((S.badges || {}).caseIds || []).indexOf(a.id) >= 0 ? ' <span class="pill bad">未対応</span>' : '') + (lastMsg[a.id] && lastMsg[a.id] !== 'staff' ? ' <span class="pill bad">要返信</span>' : '') + (reqs[a.id] && ['received','contacting','identity_pending','pickup_arranging'].indexOf(a.status) >= 0 ? ' <span class="pill gold">申告あり</span>' : '') + '</td><td>' + dt(a.created_at) + '</td><td>' + esc(a.applicant_name) + (a.agent_org ? '<br><small style="color:var(--mute)">' + esc(a.agent_org) + '</small>' : '') + '</td><td>' + esc(APPLICANT[a.applicant_role]) + '</td><td>' + esc(c.verified_name || c.name || '—') + '</td><td>' + esc((a.categories || []).join('、')) + '</td><td>' + esc(a.pref) + '</td><td>' + pill(STATUS, a.status) + '</td><td>' + esc(handlersText(a) || sm[a.assigned_to] || '—') + '</td></tr>'; }).join('')
+      return '<tr class="click" data-id="' + a.id + '" tabindex="0"><td class="mono">' + (DEL.on ? '<input type="checkbox" class="del-chk" data-del="' + a.id + '"' + (DEL.sel[a.id] ? ' checked' : '') + ' aria-label="削除する案件として選ぶ"> ' : '') + esc(a.receipt_no) + (a.trial ? ' <span class="pill warn">試験</span>' : '') + (((S.badges || {}).caseIds || []).indexOf(a.id) >= 0 ? ' <span class="pill bad">未対応</span>' : '') + (lastMsg[a.id] && lastMsg[a.id] !== 'staff' ? ' <span class="pill bad">要返信</span>' : '') + (reqs[a.id] && ['received','contacting','identity_pending','pickup_arranging'].indexOf(a.status) >= 0 ? ' <span class="pill gold">申告あり</span>' : '') + '</td><td>' + dt(a.created_at) + '</td><td>' + esc(a.applicant_name) + (a.agent_org ? '<br><small style="color:var(--mute)">' + esc(a.agent_org) + '</small>' : '') + '</td><td>' + esc(APPLICANT[a.applicant_role]) + '</td><td>' + esc(c.verified_name || c.name || '—') + '</td><td>' + esc((a.categories || []).join('、')) + '</td><td>' + esc(a.pref) + '</td><td>' + pill(STATUS, a.status) + '</td><td>' + esc(handlersText(a) || sm[a.assigned_to] || '—') + '</td></tr>'; }).join('')
       : '<tr><td colspan="9" class="empty">該当する案件はありません</td></tr>';
   }
   ['q','st','open'].forEach(function(i){ $('#' + i).addEventListener('input', draw); });
-  $('#tb').addEventListener('click', function(e){ var tr = e.target.closest('tr[data-id]'); if(tr) location.hash = 'case/' + tr.dataset.id; });
+  $('#tb').addEventListener('click', function(e){ var tr = e.target.closest('tr[data-id]'); if(!tr) return;
+    if(DEL.on){ var cb = tr.querySelector('[data-del]'); if(!cb) return; if(e.target !== cb) cb.checked = !cb.checked;
+      if(cb.checked) DEL.sel[cb.dataset.del] = true; else delete DEL.sel[cb.dataset.del]; $('#del-n').textContent = Object.keys(DEL.sel).length; return; }
+    location.hash = 'case/' + tr.dataset.id; });
+  // テストの案件の削除（管理者のみ）
+  var setDel = function(on){ DEL.on = on; DEL.sel = {}; $('#del-box').hidden = !on; $('#del-n').textContent = '0'; $('#del-mode').textContent = on ? '削除をやめる' : 'テストの案件を削除する'; draw(); };
+  if($('#del-mode')){ $('#del-mode').onclick = function(){ setDel(!DEL.on); }; $('#del-cancel').onclick = function(){ setDel(false); };
+    $('#del-run').onclick = async function(){ var ids = Object.keys(DEL.sel), b = this; if(!ids.length) return toast('削除する案件を選んでください', true);
+      var nos = apps.filter(function(a){ return DEL.sel[a.id]; }), real = nos.filter(function(a){ return !a.trial && ['paid','closed','contracted'].indexOf(a.status) >= 0; });
+      if(real.length && !b.dataset.sure){ b.dataset.sure = 1; b.textContent = '成約・振込済みの案件が' + real.length + '件含まれます。テストなら、もう一度押す'; return; }
+      b.disabled = true; try{ var n = await GL.rpc('admin_delete_test_cases', { p_list: ids, p_word: $('#del-word').value }); toast(n + '件の案件を削除しました（' + nos.map(function(a){ return a.receipt_no; }).join('、').slice(0, 120) + '）'); DEL.on = false; DEL.sel = {}; viewCases(); }
+      catch(x){ toast(x.message, true); b.disabled = false; delete b.dataset.sure; b.textContent = '選んだ案件を削除する'; } }; }
   $('#tb').addEventListener('keydown', function(e){ var tr = e.target.closest('tr[data-id]'); if(tr && e.key === 'Enter') location.hash = 'case/' + tr.dataset.id; });
   draw();
 }
@@ -483,6 +496,8 @@ function renderRequests(){
   out += '<form class="f" data-form="reply"><textarea name="body" maxlength="2000" required placeholder="お客様への返信（お客様用画面に表示され、メールで「返信あり」とだけ通知されます）"></textarea><div class="btns"><button class="btn sm">返信する</button></div></form>';
   return out;
 }
+// 間違って登録した商品は削除できる（査定をお客様に通知したあと・お客様の回答がある商品は不可）
+function itemDeletable(id){ return !C.lines.some(function(l){ if(l.item_id !== id) return false; var ap = C.appraisals.filter(function(x){ return x.id === l.appraisal_id; })[0]; return (ap && ['notified','answered'].indexOf(ap.status) >= 0) || C.approvals.some(function(v){ return v.appraisal_line_id === l.id; }); }); }
 function renderItems(){
   var ap = latestAppraisal(), draft = ap && ap.status === 'draft';
   var lm = {}; if(ap) C.lines.filter(function(l){ return l.appraisal_id === ap.id; }).forEach(function(l){ lm[l.item_id] = l; });
@@ -492,7 +507,7 @@ function renderItems(){
   if(C.items.length){
     out += '<form data-form="lines"><div class="tw"><table><thead><tr><th>商品</th><th>特徴</th><th class="r">数量</th><th class="r">査定額</th><th>お客様の回答</th></tr></thead><tbody>' + C.items.map(function(i){
       var l = lm[i.id], v = l && dm[l.id];
-      return '<tr><td>' + esc(i.category) + '<br><small>' + esc(i.description) + '</small>' + (can('appraiser','finance') ? '<br><a class="btn sub sm" href="#sheet/' + C.app.id + '/' + i.id + '">鑑定シート</a>' : '') + '</td><td><small>' + esc(i.features || '') + ' ' + esc(i.condition_note || '') + '</small></td><td class="r num">' + i.quantity + '</td><td class="r num">'
+      return '<tr><td>' + esc(i.category) + '<br><small>' + esc(i.description) + '</small>' + (can('appraiser','finance') ? '<br><a class="btn sub sm" href="#sheet/' + C.app.id + '/' + i.id + '">鑑定シート</a>' : '') + (can('appraiser') && itemDeletable(i.id) ? ' <button class="btn sub sm danger" type="button" data-act="delitem" data-id="' + i.id + '" title="間違って登録した商品を削除します">削除</button>' : '') + '</td><td><small>' + esc(i.features || '') + ' ' + esc(i.condition_note || '') + '</small></td><td class="r num">' + i.quantity + '</td><td class="r num">'
         + (draft && can('appraiser') ? '<input name="amt_' + i.id + '" type="number" min="0" step="1" value="' + (l ? l.amount : '') + '" style="width:130px;text-align:right" aria-label="' + esc(i.description) + 'の査定額">' : (l ? yen(l.amount) : '—'))
         + '</td><td>' + (v ? (v.decision === 'approve' ? '<span class="pill ok">承認</span>' : '<span class="pill bad">辞退</span>') + '<br><small>' + (v.responder_kind === 'agent' ? '代理人' : '売主') + ' ' + dt(v.responded_at) + '</small>' : '—') + '</td></tr>'; }).join('')
       + (ap ? '<tr><td colspan="3" class="r">合計</td><td class="r num">' + yen(C.lines.filter(function(l){ return l.appraisal_id === ap.id; }).reduce(function(s, l){ return s + l.amount; }, 0)) + '</td><td>承認分 ' + yen(approvedLines(ap).reduce(function(s, l){ return s + l.amount; }, 0)) + '</td></tr>' : '') + '</tbody></table></div>'
@@ -575,7 +590,7 @@ function askFirst(b, text){
   box.querySelectorAll('button')[0].onclick = function(){ box.remove(); b.hidden = false; b.dataset.sure = '1'; b.click(); };
   box.querySelectorAll('button')[1].onclick = function(){ box.remove(); b.hidden = false; };
 }
-var ASK = { nda: '定型の秘密保持契約書を作成し、当社（株式会社グローブ・株式会社マネージメントアドバイザーズ）としてあなたの名前で署名します。お客様へ署名のお願いが届きます。', notify: 'お客様へ査定結果を通知します。通知後は金額を変更できません。「グローブとして申込みをする担当者」を選んで通知すると、株式会社グローブ（買主）の申込みとして記録され、お客様はお手続き画面のチェックと電子署名だけで売買契約まで完了できます。', buyersign: '株式会社グローブを代表して売買契約に署名します。', paid: '銀行での振込を実行したことを記録します。記録すると、お客様へ「お振込み完了のご報告とお礼」のメールが自動で届きます。', agentok: '代理人の本人確認が記録済みであることを確認しました。', newap: '新しい版の査定を作成します。通知済みの査定は取り下げになります。' };
+var ASK = { delitem: 'この商品を削除します。下書きの査定額も一緒に消え、元に戻せません（削除したことは案件のメモに残ります）。', nda: '定型の秘密保持契約書を作成し、当社（株式会社グローブ・株式会社マネージメントアドバイザーズ）としてあなたの名前で署名します。お客様へ署名のお願いが届きます。', notify: 'お客様へ査定結果を通知します。通知後は金額を変更できません。「グローブとして申込みをする担当者」を選んで通知すると、株式会社グローブ（買主）の申込みとして記録され、お客様はお手続き画面のチェックと電子署名だけで売買契約まで完了できます。', buyersign: '株式会社グローブを代表して売買契約に署名します。', paid: '銀行での振込を実行したことを記録します。記録すると、お客様へ「お振込み完了のご報告とお礼」のメールが自動で届きます。', agentok: '代理人の本人確認が記録済みであることを確認しました。', newap: '新しい版の査定を作成します。通知済みの査定は取り下げになります。' };
 var FORMS = {
   status: async function(d){ var h = Object.keys(d).filter(function(k){ return /^h_/.test(k) && d[k] === true; }).map(function(k){ return k.slice(2); }); var added = h.filter(function(x){ return (C.app.handler_ids || []).indexOf(x) < 0; }); await GL.update('applications', { id: C.app.id }, { status: d.status, handler_ids: h }); return added.length && ['closed','cancelled','returned','paid'].indexOf(d.status) < 0 ? '更新しました。お客様へ担当者（' + added.map(nameOf).join('・') + '）からのあいさつのメールを送りました' : '更新しました'; },
   cust: function(d){ return GL.update('customers', { id: C.cust.id }, { kind: d.kind, name: d.name, email: (d.email || '').toLowerCase() || null, tel: d.tel || null, verified_name: d.verified_name || null, verified_kana: d.verified_kana || null }); },
@@ -632,6 +647,7 @@ var ACTS = {
     if(r.id_type && f.ev_doc) f.ev_doc.value = r.id_type;
     f.scrollIntoView({ block: 'center' }); return '申告の内容を写しました。身分証の画像と申告内容が一致するか確かめ、転送不要の簡易書留を送ってください。届いたら書留の番号と到達日を入れて「記録する」を押します';
   },
+  delitem: async function(id){ var it = C.items.filter(function(x){ return x.id === id; })[0]; await GL.rpc('staff_delete_item', { p_item: id }); return '商品「' + (it ? it.description : '') + '」を削除しました（案件のメモに記録しました）'; },
   agentok: function(id){ return GL.update('mandates', { id: id }, { agent_identity_checked: true }); },
   intact: async function(id){ var ok = await GL.rpc('contract_intact', { p_contract: id }); if(!ok) throw new Error('改ざんの疑いがあります。本文または署名時の内容が一致しません'); return '改ざんは検出されませんでした'; },
   buyersign: async function(id){ var el = $('#bn-' + id), on = el ? el.value : ''; await GL.rpc('staff_sign_contract', { p_contract: id, p_name: on || null }); return '株式会社グローブ（買主）として署名しました' + (on ? '（' + nameOf(on) + 'さん）' : ''); },
@@ -1454,7 +1470,9 @@ async function viewHealth(){ var my = S.seq;
 var CHANNELS = ['業者間オークション','買取業者・卸','店頭','インターネット販売','その他'];
 async function viewResale(){ var my = S.seq;
   var rows = await GL.select('resale_book', { order: 'trade_at.desc', limit: 5000 });
+  var buyers = await safe(GL.select('sale_buyers', { order: 'name.asc', limit: 1000 }));
   if(my !== S.seq) return;
+  var act = buyers.filter(function(x){ return x.active; });
   var stock = rows.filter(function(r){ return !r.resale_id; }), sold = rows.filter(function(r){ return r.resale_id; });
   var ym = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }).slice(0, 7), byM = {};
   sold.forEach(function(r){ var m = r.sold_on.slice(0, 7), x = byM[m] = byM[m] || { n: 0, price: 0, fees: 0, cost: 0, profit: 0 }; x.n++; x.price += r.price; x.fees += r.fees; x.cost += r.cost; x.profit += r.profit; });
@@ -1465,6 +1483,10 @@ async function viewResale(){ var my = S.seq;
     + '<div class="stats"><div class="stat"><b>' + stock.length + '点</b><span>在庫（' + yen(sum(stock, 'cost')) + '）</span></div><div class="stat"><b>' + yen(cm.price) + '</b><span>今月の再販売上（' + cm.n + '点）</span></div><div class="stat"><b>' + yen(cm.profit) + '</b><span>今月の粗利（粗利率 ' + rate(cm) + '）</span></div><div class="stat"><b>' + yen(sum(sold, 'profit')) + '</b><span>累計の粗利</span></div></div>'
     + '<div class="card"><header><h2>月別</h2></header><div class="tw"><table><thead><tr><th>月</th><th class="r">点数</th><th class="r">再販売上</th><th class="r">手数料等</th><th class="r">買取額</th><th class="r">粗利</th><th class="r">粗利率</th></tr></thead><tbody>'
     + (Object.keys(byM).sort().reverse().map(function(m){ var x = byM[m]; return '<tr><td>' + esc(m.replace('-', '年')) + '月</td><td class="r">' + x.n + '</td><td class="r num">' + yen(x.price) + '</td><td class="r num">' + yen(x.fees) + '</td><td class="r num">' + yen(x.cost) + '</td><td class="r num">' + yen(x.profit) + '</td><td class="r">' + rate(x) + '</td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">再販の記録はありません</td></tr>') + '</tbody></table></div></div>'
+    + '<div class="card" id="rs-buyers"><header><h2>販売先の一覧</h2><span class="hint">登録した販売先は、再販の記録のときに選べます。一覧にない販売先は自由に記入でき、そのまま登録もできます</span></header><div class="in">'
+    + (act.length ? '<ul class="buyer-list">' + act.map(function(x){ return '<li><b>' + esc(x.name) + '</b>' + (x.channel ? '<small>' + esc(x.channel) + '</small>' : '') + '<button class="btn sub sm" type="button" data-bh="' + x.id + '">一覧から外す</button></li>'; }).join('') + '</ul>' : '<p class="empty">まだ登録はありません</p>')
+    + '<form class="btns" id="by-add"><input name="name" maxlength="100" placeholder="販売先の名前（例：〇〇オークション）" style="min-width:240px" required><select name="channel"><option value="">区分（任意）</option>' + CHANNELS.map(function(c){ return '<option>' + c + '</option>'; }).join('') + '</select><button class="btn sm">登録する</button></form>'
+    + (buyers.length > act.length ? '<p class="note" style="margin:0">一覧から外した販売先：' + buyers.filter(function(x){ return !x.active; }).map(function(x){ return esc(x.name) + ' <button class="btn sub sm" type="button" data-bs="' + x.id + '">戻す</button>'; }).join('　') + '</p>' : '') + '</div></div>'
     + '<div class="card" id="rs-root"><header><h2>品物ごと</h2><label class="chk"><label><input type="checkbox" id="rs-sold">再販済みも表示</label></label></header><div class="tw"><table><thead><tr><th>買取日</th><th>受付番号</th><th>品物</th><th class="r">買取額</th><th>再販</th><th class="r">粗利</th><th></th></tr></thead><tbody id="rs-tb"></tbody></table></div></div>';
   function draw(){
     var show = $('#rs-sold').checked ? rows : stock;
@@ -1472,15 +1494,26 @@ async function viewResale(){ var my = S.seq;
       + '<tr hidden id="rsf-' + r.item_id + '"><td colspan="7"></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">' + ($('#rs-sold').checked ? '買い取った品物はありません' : '在庫はありません') + '</td></tr>';
   }
   draw(); $('#rs-sold').onchange = draw;
+  var addBuyer = async function(name, ch){ name = String(name || '').trim(); if(!name) return; if(buyers.some(function(x){ return x.name === name; })) return; await GL.insert('sale_buyers', { name: name, channel: ch || null }); };
+  $('#by-add').onsubmit = async function(e){ e.preventDefault(); var f = e.target; try{ if(buyers.some(function(x){ return x.name === f.name.value.trim(); })) throw new Error('その販売先はすでに登録されています'); await addBuyer(f.name.value, f.channel.value); toast('販売先を登録しました'); viewResale(); }catch(x){ toast(/duplicate|unique/.test(x.message) ? 'その販売先はすでに登録されています' : x.message, true); } };
+  $('#rs-buyers').onclick = async function(e){ var h = e.target.closest('[data-bh],[data-bs]'); if(!h) return; try{ await GL.update('sale_buyers', { id: h.dataset.bh || h.dataset.bs }, { active: !!h.dataset.bs }); toast(h.dataset.bs ? '一覧に戻しました' : '一覧から外しました（これまでの記録は残ります）'); viewResale(); }catch(x){ toast(x.message, true); } };
   $('#rs-root').onclick = function(e){
     var b = e.target.closest('[data-rs]'); if(!b) return; var r = rows.filter(function(x){ return x.item_id === b.dataset.rs; })[0], tr = $('#rsf-' + r.item_id);
     if(!tr.hidden){ tr.hidden = true; return; }
     tr.hidden = false; tr.firstChild.innerHTML = '<form class="f" style="padding:8px 0"><div class="row"><label class="l">販売日<input name="sold_on" type="date" required value="' + esc(r.sold_on || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })) + '"></label><label class="l">販売先の区分<select name="channel">' + CHANNELS.map(function(c){ return '<option' + (r.channel === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label><label class="l">再販価格（円）<input name="price" type="number" min="0" required value="' + (r.price != null ? r.price : '') + '"></label><label class="l">手数料・送料など（円）<input name="fees" type="number" min="0" value="' + (r.fees || 0) + '"></label></div>'
-      + '<div class="row"><label class="l">販売先（任意）<input name="buyer_name" maxlength="100" value="' + esc(r.buyer_name || '') + '"></label><label class="l">メモ（任意）<input name="note" maxlength="300" value="' + esc(r.note || '') + '"></label></div><p class="note" style="margin:0">粗利の見込み：<b class="rs-pf">—</b>（買取額 ' + yen(r.cost) + '）</p><div class="btns"><button class="btn sm">保存する</button></div></form>';
+      + '<div class="row"><label class="l">販売先（登録済みから選ぶ）<select name="buyer_pick"><option value="">選ばない</option>' + act.map(function(x){ return '<option value="' + esc(x.name) + '"' + (r.buyer_name === x.name ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '<option value="__new">＋ 一覧にない販売先を記入する</option></select></label>'
+      + '<label class="l" data-bnew' + (r.buyer_name && !act.some(function(x){ return x.name === r.buyer_name; }) ? '' : ' hidden') + '>販売先（自由記入）<input name="buyer_name" maxlength="100" value="' + esc(r.buyer_name && !act.some(function(x){ return x.name === r.buyer_name; }) ? r.buyer_name : '') + '"><span style="font-size:12px;display:block;margin-top:4px"><input type="checkbox" name="buyer_save" checked> この販売先を登録して、次から選べるようにする</span></label><label class="l">メモ（任意）<input name="note" maxlength="300" value="' + esc(r.note || '') + '"></label></div><p class="note" style="margin:0">粗利の見込み：<b class="rs-pf">—</b>（買取額 ' + yen(r.cost) + '）</p><div class="btns"><button class="btn sm">保存する</button></div></form>';
     var f = tr.querySelector('form'), pf = function(){ var v = Number(f.price.value || 0) - Number(f.fees.value || 0) - r.cost; f.querySelector('.rs-pf').textContent = f.price.value ? yen(v) : '—'; };
     f.oninput = pf; pf();
-    f.onsubmit = async function(ev){ ev.preventDefault(); var d = { sold_on: f.sold_on.value, channel: f.channel.value, price: Number(f.price.value), fees: Number(f.fees.value || 0), buyer_name: f.buyer_name.value.trim() || null, note: f.note.value.trim() || null };
-      try{ if(r.resale_id) await GL.update('resales', { id: r.resale_id }, d); else await GL.insert('resales', Object.assign({ item_id: r.item_id }, d)); toast('記録しました'); viewResale(); }catch(x){ toast(x.message, true); } };
+    if(r.buyer_name && !act.some(function(x){ return x.name === r.buyer_name; })) f.buyer_pick.value = '__new';
+    f.buyer_pick.onchange = function(){ var nw = f.buyer_pick.value === '__new'; f.querySelector('[data-bnew]').hidden = !nw; if(nw) f.buyer_name.focus();
+      var hit = act.filter(function(x){ return x.name === f.buyer_pick.value; })[0]; if(hit && hit.channel && CHANNELS.indexOf(hit.channel) >= 0) f.channel.value = hit.channel; };
+    f.onsubmit = async function(ev){ ev.preventDefault(); var d = { sold_on: f.sold_on.value, channel: f.channel.value, price: Number(f.price.value), fees: Number(f.fees.value || 0), buyer_name: (f.buyer_pick.value === '__new' ? f.buyer_name.value.trim() : f.buyer_pick.value) || null, note: f.note.value.trim() || null };
+      if(f.buyer_pick.value === '__new' && !d.buyer_name) return toast('販売先の名前を記入してください', true);
+      try{ if(r.resale_id) await GL.update('resales', { id: r.resale_id }, d); else await GL.insert('resales', Object.assign({ item_id: r.item_id }, d));
+        var reg = f.buyer_pick.value === '__new' && f.buyer_save.checked && d.buyer_name && !buyers.some(function(x){ return x.name === d.buyer_name; });
+        if(reg){ try{ await addBuyer(d.buyer_name, d.channel); }catch(y){} }
+        toast(reg ? '記録し、販売先「' + d.buyer_name + '」を一覧に登録しました' : '記録しました'); viewResale(); }catch(x){ toast(x.message, true); } };
   };
   $('#rs-csv').onclick = function(){
     var head = ['買取日','受付番号','品目','品物','買取額','販売日','販売先の区分','販売先','再販価格','手数料等','粗利'];

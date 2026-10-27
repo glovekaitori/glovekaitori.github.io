@@ -190,3 +190,9 @@ a.src{display:block;font-size:11px;color:var(--gold);margin-top:2px}
 .card.st-done{border-color:var(--ok,#6fbf73)}
 .card.st-done>header{background:rgba(111,191,115,.07)}
 .card.st-na>.in{opacity:.6}
+
+/* 再販・粗利：販売先の一覧 */
+.buyer-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.buyer-list li{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line,#333)}
+.buyer-list small{color:var(--mute,#888)}
+.buyer-list .btn{margin-left:auto}
