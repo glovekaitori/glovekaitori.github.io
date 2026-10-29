@@ -401,8 +401,8 @@ function markSteps(){
     var num = '①②③④⑤⑥⑦⑧⑨⑩'.charAt(n - 1) || n, st = x[2].st;
     sec.classList.add('step', 'st-' + st);
     var h = sec.querySelector('header h2'); if(h) h.innerHTML = '<span class="stepno">' + num + '</span>' + h.innerHTML;
-    var hd = sec.querySelector('header'); if(hd){ var b = document.createElement('span'); b.className = 'stepst ' + st; b.textContent = (st === 'done' ? '✓ ' : st === 'todo' ? '● ' : '') + L[st] + (x[2].note ? '：' + x[2].note : ''); hd.insertBefore(b, hd.children[1] || null); }
-    strip.push('<button type="button" class="sp ' + st + '" data-jump="' + x[0] + '" title="' + esc(L[st] + (x[2].note ? '：' + x[2].note : '')) + '"><b>' + num + '</b>' + esc(x[1]) + '<i>' + (st === 'done' ? '✓ 完了' : st === 'todo' ? '未完了' : st === 'wait' ? '待ち' : st === 'later' ? 'これから' : '—') + '</i></button>');
+    var hd = sec.querySelector('header'); if(hd){ var b = document.createElement('span'); b.className = 'stepst ss-' + st; b.textContent = (st === 'done' ? '✓ ' : st === 'todo' ? '● ' : '') + L[st] + (x[2].note ? '：' + x[2].note : ''); hd.insertBefore(b, hd.children[1] || null); }
+    strip.push('<button type="button" class="sp sp-' + st + '" data-jump="' + x[0] + '" title="' + esc(L[st] + (x[2].note ? '：' + x[2].note : '')) + '"><b>' + num + '</b>' + esc(x[1]) + '<i>' + (st === 'done' ? '✓ 完了' : st === 'todo' ? '未完了' : st === 'wait' ? '待ち' : st === 'later' ? 'これから' : '—') + '</i></button>');
   });
   var todo = document.querySelector('#main .todo'); if(!strip.length || !todo) return;
   var d = document.createElement('div'); d.className = 'stepbar'; d.setAttribute('aria-label', '手続きの進み具合'); d.innerHTML = strip.join(''); todo.parentNode.insertBefore(d, todo);
