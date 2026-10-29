@@ -729,3 +729,15 @@ body.has-ret main{padding-bottom:84px}
 .p-upd{margin:-8px 0 16px;font-size:.82rem}
 #p-reload{white-space:nowrap}
 #staff-login a{color:var(--on-dark-mute);font-size:.78rem;text-decoration:underline;text-underline-offset:3px}
+/* リピーターのかんたんお申込み */
+.quick-box,.quick-sum{border:2px solid var(--gold-hi,#e6d3a8);background:rgba(200,174,125,.1);padding:16px 18px;margin:0 0 20px;display:grid;gap:8px}
+.quick-h{font-size:1.05rem;color:var(--gold-hi,#e6d3a8);margin:0}
+.quick-box p,.quick-sum p{margin:0}
+.quick-sw{display:flex;gap:10px;align-items:center;font-weight:700;min-height:44px;cursor:pointer}
+.quick-sw input{width:22px;height:22px;accent-color:var(--gold)}
+.quick-sum dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0;font-size:.95rem}
+.quick-sum dt{color:var(--on-dark-mute)}
+.rep-band{padding:28px 0;background:linear-gradient(180deg,rgba(200,174,125,.16),rgba(200,174,125,.05));border-top:1px solid var(--gold-line);border-bottom:1px solid var(--gold-line)}
+.rep-band .wrap{display:grid;gap:10px}
+.rep-band .rep-h{font-size:1.25rem;color:var(--gold-hi,#e6d3a8);margin:0;letter-spacing:.08em}
+.rep-band p{margin:0}

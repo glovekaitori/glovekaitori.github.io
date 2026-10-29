@@ -75,19 +75,25 @@ window.gloveCall=async function(fn,args){
   var saved=null; try{saved=localStorage.getItem('gl-portal');}catch(e){}
   if(!saved||!window.GL||!GL.configured) return;
   var cta=d.querySelector('.nav .cta'), base=cta?cta.getAttribute('href').replace(/apply\/?$/,''):'/';
-  var show=function(n){
+  var show=function(n,all){
+    // リピーターのお客様：トップページに「前回の内容でかんたんお申込み」を出す
+    if(all&&!d.getElementById('rep-band')&&pg==='top'){
+      var main=d.querySelector('main'), first=main&&main.firstElementChild;
+      if(main){var bd=d.createElement('section');bd.id='rep-band';bd.className='rep-band';bd.innerHTML='<div class="wrap"><p class="rep-h">おかえりなさいませ</p><p>2回目以降のお申込みは、前回の「お申込みの方・ご連絡先・集荷先」をそのまま使えます。お品物の写真と種類を入れるだけで申し込めます。</p><div class="btns"><a class="btn" href="'+base+'apply/">かんたんお申込み（前回の内容を使う）</a>'+(n?'<a class="btn ghost" href="'+base+'status/">お手続き中のお取引を見る</a>':'')+'</div></div>';main.insertBefore(bd,first?first.nextSibling:null);}
+    }
     if(!n) return;
     var nav=d.getElementById('gnav');
     if(nav&&!d.getElementById('ret-nav')){var a=d.createElement('a');a.id='ret-nav';a.className='cta-ret';a.href=base+'status/';a.textContent='お手続きに戻る';nav.insertBefore(a,cta||null);}
     if(!d.getElementById('ret-pill')){var p=d.createElement('a');p.id='ret-pill';p.href=base+'status/';p.innerHTML='<span class="rp-dot"></span><span>お手続き中のお取引があります</span><b>お手続きに戻る →</b>';d.body.appendChild(p);d.body.classList.add('has-ret');}
   };
   var c=null; try{c=JSON.parse(sessionStorage.getItem('gl-active')||'null');}catch(e){}
-  if(c&&Date.now()-c.at<180000){show(c.n);return;}
+  if(c&&Date.now()-c.at<180000){show(c.n,c.all);return;}
   (async function(){
     try{ GL.useStore('gl-portal',true); if(!GL.session) return;
       var cs=await GL.rpc('portal_cases',{}), n=(cs||[]).filter(function(x){return ['paid','closed','cancelled','returned'].indexOf(x.status)<0;}).length;
-      try{sessionStorage.setItem('gl-active',JSON.stringify({n:n,at:Date.now()}));}catch(e){}
-      show(n);
+      var all=(cs||[]).length;
+      try{sessionStorage.setItem('gl-active',JSON.stringify({n:n,all:all,at:Date.now()}));}catch(e){}
+      show(n,all);
     }catch(e){}
   })();
 })();

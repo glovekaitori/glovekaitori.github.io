@@ -77,7 +77,7 @@
       tel:val('tel'), email:val('email'), contactWay:val('contactWay'), code:val('code'),
       categories:vals('cat'), summary:val('summary'), qty:val('qty'), photoCount:photos.length,
       pref:val('pref'), city:val('city'), handover:val('handover'), pickupWay:val('pickupWay'),
-      wish:val('wish'), note:val('note')
+      wish:val('wish'), note:((QUICK&&QUICK.on&&QUICK.mark)?QUICK.mark+(val('note')?'\n'+val('note'):''):val('note'))
     };
   }
   var labels=[['photoCount','写真'],['categories','お品物の種類'],['summary','お品物の概要'],['qty','おおよその点数'],['role','申込者区分'],['name','お名前・法人名'],['agentOrg','ご所属'],['relation','売主様との関係'],['email','メールアドレス'],['contactWay','ご希望の連絡方法'],['tel','電話番号'],['code','紹介コード'],['pref','集荷希望地（都道府県）'],['city','集荷希望地（市区町村）'],['handover','お品物をお渡しになる方'],['pickupWay','ご希望の集荷方法'],['wish','ご希望の日時'],['note','その他のご要望']];
@@ -131,8 +131,11 @@
     if(i===sets.length-1){var fb=final.querySelector('.btns');if(fb&&nav.firstChild)fb.insertBefore(nav.firstChild,fb.firstChild);return;}
     fs.appendChild(nav);
   });
+  var QUICK=null; // リピーターのかんたんお申込み（前回の内容）
   function show(n){
+    if(QUICK&&QUICK.on&&n>1&&n<sets.length) n=(step===1?sets.length:1);
     step=Math.max(1,Math.min(sets.length,n));
+    var qs=document.getElementById('quickSum'); if(qs) qs.hidden=!(QUICK&&QUICK.on&&step===sets.length);
     sets.forEach(function(fs){fs.hidden=Number(fs.dataset.step)!==step;});
     final.hidden=step!==sets.length;
     bar.innerHTML='<span class="wnum">入力 '+step+' / '+sets.length+'</span><span class="wname">'+sets[step-1].dataset.title+'</span><span class="wbar"><i style="width:'+(step/sets.length*100)+'%"></i></span>';
@@ -151,12 +154,42 @@
   syncRole();renumber();
   show(1);
 
+  // ── リピーターのお客様：前回のお申込みの内容を使って、入力を省略する ──
+  //   この端末でお手続き画面にログインしている場合だけ。お品物（1/4）を入れたら、すぐ最後（集荷・同意）へ進む
+  (async function(){
+    var saved=null; try{saved=localStorage.getItem('gl-portal');}catch(e){}
+    if(!saved||!window.GL||!GL.configured) return;
+    var r=null; try{ GL.useStore('gl-portal',true); if(!GL.session) return; r=await GL.rpc('portal_repeat_info',{}); }catch(e){ return; }
+    if(!r||!r.name) return;
+    var setV=function(n,v){ v=v==null?'':String(v); var els=form.querySelectorAll('[name='+n+']'); if(!els.length) return;
+      if(els[0].type==='radio'){ els.forEach(function(x){ x.checked=(x.value===v); }); }
+      else { els[0].disabled=false; els[0].value=v; }
+      var none=form.querySelector('[data-none='+n+']'); if(none){ none.checked=!v; none.dispatchEvent(new Event('change',{bubbles:true})); } };
+    var apply_=function(){ ['role','name','agentOrg','relation','email','tel','contactWay','pref','city','handover','pickupWay'].forEach(function(k){ setV(k,r[k]); }); if(!form.code.value) setV('code',''); syncRole(); renumber(); };
+    var d0=r.createdAt?new Date(r.createdAt).toLocaleDateString('ja-JP',{timeZone:'Asia/Tokyo'}):'';
+    var box=document.createElement('div'); box.className='quick-box';
+    box.innerHTML='<p class="quick-h">おかえりなさいませ。<b>'+esc_(r.name)+'</b> 様</p><p>前回のお申込み（受付番号 '+esc_(r.receiptNo)+'・'+d0+'）の「お申込みの方・ご連絡先・集荷先」を使って、入力を省略できます。<br>お品物の写真と種類を入れたら、すぐ最後の確認へ進みます。</p><label class="quick-sw"><input type="checkbox" id="quickOn" checked> 前回の内容を使う（かんたんお申込み）</label>';
+    form.insertBefore(box, bar.nextSibling);
+    var sum=document.createElement('div'); sum.id='quickSum'; sum.className='quick-sum'; sum.hidden=true;
+    var last=sets[sets.length-1]; last.insertBefore(sum,last.firstChild);
+    var drawSum=function(){ var d=collect(); sum.innerHTML='<p class="quick-h">前回と同じ内容で申し込みます</p><dl><dt>お申込みの方</dt><dd>'+esc_(d.name)+'（'+esc_(d.role)+'）'+(d.agentOrg?'　'+esc_(d.agentOrg):'')+'</dd><dt>ご連絡先</dt><dd>'+esc_(d.email)+(d.tel?'／'+esc_(d.tel):'')+'（'+esc_(d.contactWay)+'）</dd></dl><button type="button" class="btn ghost" id="quickEdit">お申込みの方・ご連絡先を変更する</button>';
+      document.getElementById('quickEdit').onclick=function(){ QUICK.on=false; document.getElementById('quickOn').checked=false; show(2); }; };
+    QUICK={on:true,info:r};
+    apply_(); drawSum();
+    var nt=form.elements.note; QUICK.mark='【リピーター：前回 '+r.receiptNo+'】';
+    document.getElementById('quickOn').onchange=function(e){ QUICK.on=e.target.checked; if(QUICK.on){ apply_(); drawSum(); } };
+    form.addEventListener('input',function(){ if(QUICK.on&&step===sets.length) drawSum(); });
+    // 1/4 の「次へ」を「最後の確認へ」に
+    var nb=sets[0].querySelector('.wnav .btn:not(.ghost)'); if(nb){ QUICK.nbText=nb.textContent; var sync=function(){ nb.textContent=QUICK.on?'次へ（前回の内容で、最後の確認へ）':QUICK.nbText; }; sync(); document.getElementById('quickOn').addEventListener('change',sync); }
+  })();
+  function esc_(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
   var current=null;
   form.addEventListener('submit',function(ev){
     ev.preventDefault();
     if(step<sets.length){next();return;}
     var d=collect(),e=check(d);showErr(e);
-    if(Object.keys(e).length){for(var n=1;n<=sets.length;n++){if(Object.keys(stepErrors(n,e)).length){show(n);showErr(e);break;}}return;}
+    if(Object.keys(e).length){for(var n=1;n<=sets.length;n++){if(Object.keys(stepErrors(n,e)).length){if(QUICK&&QUICK.on&&n>1&&n<sets.length){QUICK.on=false;var qo=document.getElementById('quickOn');if(qo)qo.checked=false;}show(n);showErr(e);break;}}return;}
     if(Object.keys(e).length)return;
     current=d;
     var tb=document.getElementById('confirmBody');tb.innerHTML='';
