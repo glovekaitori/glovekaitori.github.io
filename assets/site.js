@@ -91,3 +91,10 @@ window.gloveCall=async function(fn,args){
     }catch(e){}
   })();
 })();
+
+// サイトの下（フッター）に「担当者ログイン」を置く（管理画面のログイン画面へ）
+(function(){
+  var d=document, lg=d.querySelector('.ft-legal'); if(!lg||d.getElementById('staff-login')) return;
+  var cta=d.querySelector('.nav .cta'), base=cta?cta.getAttribute('href').replace(/apply\/?$/,''):'/';
+  var p=d.createElement('p'); p.id='staff-login'; p.innerHTML='<a href="'+base+'admin/" rel="nofollow">担当者ログイン</a>'; lg.appendChild(p);
+})();

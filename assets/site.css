@@ -728,3 +728,4 @@ body.hp-typing .hp-btn{opacity:0;pointer-events:none;transition:opacity .2s}
 body.has-ret main{padding-bottom:84px}
 .p-upd{margin:-8px 0 16px;font-size:.82rem}
 #p-reload{white-space:nowrap}
+#staff-login a{color:var(--on-dark-mute);font-size:.78rem;text-decoration:underline;text-underline-offset:3px}
