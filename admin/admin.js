@@ -69,6 +69,66 @@ function viewMfa(fid, enroll){
   });
 }
 
+
+// ============ 使い方ナビ（右下の「？ 使い方」） ============
+//   いま開いている画面の使い方を先に出し、案件の流れ（①〜⑨）と、よくある操作を言葉で探せるようにする
+var HELP = {
+  cases: ['案件', ['お申込みの一覧です。行を押すと、その案件を開きます。', '「未対応」はお客様が操作したあと、まだ開いていない案件。「要返信」はお客様からの連絡に返事をしていない案件です。', '受付番号・お名前で探せます。「完了・取消を除く」を外すと終わった案件も出ます。', '管理者は「テストの案件を削除する」でテストの案件をまとめて消せます（実際のお取引は消さないでください）。']],
+  case: ['案件の画面', ['上の①〜⑨の帯が進み具合です。赤い太枠が「今やること」、緑が「完了」、青が「お客様・配送待ち」、灰色が「これから」。番号を押すとその欄へ移動します。', 'その下の「次にやること」に、今の作業が順番に出ます。', '担当者にチェックを入れて「更新」すると、お客様へ担当者名入りのあいさつのメールが届きます。', '連絡はいちばん下の「メモ・連絡の記録」に残してください。']],
+  sheet: ['鑑定シート', ['Step1〜5の順に埋めると、提示額と報告書ができます。', '「① Gemini 用の依頼文をコピー」→ 鑑定専用の Gem に貼って写真を添付 →「③ 回答を取り込む」で、定価・相場・他社買取まで一度に埋まります。', '「この金額を査定に入れる」で案件の査定（下書き）に反映。「提示額をご案内文に使う」で写真の目安のご案内文に入ります。', '「報告書をPDFで保存」で社内用の報告書になります（お客様には送りません）。']],
+  contacts: ['問い合わせ', ['サイトの「お問い合わせ」から届いたものです。対応したら「対応済み」にしてください（未対応の件数がメニューに出ます）。']],
+  support: ['サポート', ['お客様画面の「使い方・相談」から担当者に届いた相談です。返事をするとお客様の画面に届きます。', '「在席中」にすると、お客様の画面に担当者がいることが表示されます。']],
+  faq: ['自動応答', ['お客様画面の「使い方・相談」で自動で答える文章です。よく聞かれる質問を足しておくと、問い合わせが減ります。']],
+  codes: ['紹介コード', ['紹介元ごとのコードを作ります。お申込みの画面で入力されると、案件に紹介元が記録されます（コードがなくても申込みはできます）。']],
+  payments: ['振込', ['売買契約が成立した案件の振込の一覧です。作成 → 承認 → 銀行で振り込み →「振込を実行した」の順に進めます。', '口座の名義が売主と一致しない振込は自動で「要確認」になります。確認内容を記録してから承認してください。', '「振込を実行した」を押すと、お客様へ「お振込み完了のご報告とお礼」のメールが届きます。']],
+  ledger: ['古物台帳', ['成約したお品物が古物営業法の台帳として自動で並びます。「表計算用に保存（CSV）」で書き出せます。記録は削除できません。']],
+  refs: ['実績相場', ['過去の販売実績の相場です。鑑定シートの価格の根拠に使われます。']],
+  rates: ['掛率の設定', ['品目とランクごとの掛率です。鑑定シートの提示額の計算に使われます。']],
+  resale: ['再販・粗利', ['買い取った品物を売ったら、品物の行の「再販を記録」から販売日・販売先・価格を入れます。粗利が自動で計算されます。', '販売先は「販売先の一覧」に登録すると、次から選べます。一覧にない販売先はその場で記入でき、そのまま登録もできます。']],
+  summary: ['集計', ['月ごとの受付・成約・買取額などのまとめです。']],
+  staff: ['担当者', ['担当者の登録・役割・停止と、担当者名（あいさつのメール・契約の署名に使う名前）の管理です。', '「運用の設定」で、一人で運用（振込の作成と承認を同じ人が行う）や二段階認証を切り替えられます。']],
+  audit: ['操作履歴', ['いつ・何を変えたか、いつ・何を見たかの記録です。追記のみで、消せません。']],
+  backup: ['バックアップ', ['すべての記録を合言葉で暗号化して、この端末に保存します。週に1回をおすすめします。合言葉は別に控えてください。']],
+  health: ['接続の確認', ['メール・データベース・自動処理などが正しくつながっているかを確かめます。困ったときはまずここを見てください。']],
+  account: ['パスワード変更', ['12文字以上の新しいパスワードを2回入れて「変更する」。']]
+};
+var FLOW = [
+  ['① 受付・担当', '申込みが届くと「未対応」に出ます。案件を開き、担当者にチェックして「更新」（お客様にあいさつのメール）。'],
+  ['② 代理（委任）', '代理の方の申込みは、委任状が要ります。代理の方が作るか、担当者が「委任状を作成する」。ご本人の署名と代理の方の本人確認で有効になります。'],
+  ['③ 本人確認', 'お客様の申告が届いたら「本人確認欄に写す」→ 身分証の画像と照合 → 転送不要の簡易書留を送り、到達したら番号と到達日を入れて「記録する」。証跡は選択と自由記入で残します。'],
+  ['④ 売主の名義', '本人確認のあと、確認済みの名義（漢字・カナ）を保存。振込はこの名義の口座にだけ行います。'],
+  ['⑤ 集荷・受領', 'お客様の集荷の希望を見て手配。届いたら「受領を記録」（点数・状態）。'],
+  ['⑥ 商品と査定', '商品を登録（写真のご案内文の品名からも自動登録）→ 鑑定シートで価格を決める → 査定額を入れ「お客様へ査定結果を通知」。間違えた商品は通知前なら「削除」できます。'],
+  ['⑦ 契約', 'お客様が「売る」を選ぶと売買契約書ができます。お客様の署名と、株式会社グローブ（買主）の署名で成立。'],
+  ['⑧ 振込', '振込を作成 → 承認 → 銀行で振り込み →「振込を実行した」（お客様へお礼のメール）。'],
+  ['⑨ 返却', 'お売りにならなかったお品物は、お客様の返却先を見て「発送を記録」→「到着を記録」。送料は当社負担。']
+];
+function helpKey(){ var k = (location.hash || '').slice(1).split('/')[0]; return HELP[k] ? k : 'cases'; }
+function openHelp(q){
+  var box = $('#hlp-panel'); if(!box){ box = document.createElement('aside'); box.id = 'hlp-panel'; box.setAttribute('aria-label', '使い方ナビ'); document.body.appendChild(box); }
+  var k = helpKey(), h = HELP[k], q0 = String(q || '').trim();
+  var hit = function(t){ return !q0 || t.indexOf(q0) >= 0; };
+  var cur = '';
+  if(k === 'case' && typeof stepStates === 'function' && C && C.app){ try{ var st = stepStates().filter(function(x){ return x[2].st === 'todo'; });
+    cur = '<div class="hlp-now"><b>この案件で今やること</b>' + (st.length ? '<ol>' + st.map(function(x){ return '<li>' + esc(x[1]) + '：' + esc(x[2].note || '') + '</li>'; }).join('') + '</ol>' : '<p>今やることはありません（お客様・配送の待ち、または完了）。</p>') + '</div>'; }catch(e){} }
+  var all = Object.keys(HELP).map(function(x){ return HELP[x]; });
+  box.innerHTML = '<div class="hlp-head"><b>？ 使い方ナビ</b><button type="button" class="btn sub sm" id="hlp-close">閉じる</button></div>'
+    + '<input id="hlp-q" placeholder="言葉で探す（例：振込、削除、委任状、パスワード）" value="' + esc(q0) + '">'
+    + (q0 ? '' : cur + '<h3>この画面：' + esc(h[0]) + '</h3><ul>' + h[1].map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>')
+    + '<h3>案件の流れ（①〜⑨）</h3><ol class="hlp-flow">' + FLOW.filter(function(f){ return hit(f[0] + f[1]); }).map(function(f){ return '<li><b>' + esc(f[0]) + '</b><span>' + esc(f[1]) + '</span></li>'; }).join('') + '</ol>'
+    + (q0 ? '<h3>ほかの画面</h3><ul>' + all.filter(function(x){ return hit(x[0] + x[1].join('')); }).map(function(x){ return '<li><b>' + esc(x[0]) + '</b>：' + x[1].filter(hit).map(esc).join(' ') + '</li>'; }).join('') + '</ul>' : '')
+    + '<p class="note" style="margin:8px 0 0">分からないときは「接続の確認」を見るか、操作した画面の写真を担当者に送ってください。</p>';
+  box.hidden = false;
+  $('#hlp-close').onclick = function(){ box.hidden = true; };
+  var qi = $('#hlp-q'); qi.oninput = function(){ var v = qi.value, pos = qi.selectionStart; openHelp(v); var n = $('#hlp-q'); n.focus(); try{ n.setSelectionRange(pos, pos); }catch(e){} };
+}
+function helpButton(){
+  if($('#hlp-btn')) return;
+  var b = document.createElement('button'); b.id = 'hlp-btn'; b.type = 'button'; b.textContent = '？ 使い方'; b.title = 'この画面の使い方'; b.onclick = function(){ var p = $('#hlp-panel'); if(p && !p.hidden){ p.hidden = true; } else openHelp(); };
+  document.body.appendChild(b);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ var p = $('#hlp-panel'); if(p) p.hidden = true; } });
+  window.addEventListener('hashchange', function(){ var p = $('#hlp-panel'); if(p && !p.hidden) setTimeout(function(){ openHelp(); }, 400); });
+}
 // ============ 骨組み ============
 var NAV = [
   ['support','サポート', function(){ return can('reception'); }],
@@ -99,7 +159,7 @@ async function start(){
     + '<div class="me"><span>' + esc(S.me.name) + '（' + esc(ROLE[S.me.role]) + '・' + esc(COMPANY[S.me.company]) + '）</span><button class="btn sub sm" id="logout">ログアウト</button></div></aside>'
     + '<main class="main" id="main"></main></div>';
   $('#logout').onclick = async function(){ await GL.signOut(); location.hash = ''; viewLogin('ログアウトしました'); };
-  window.onhashchange = route; route();
+  window.onhashchange = route; route(); helpButton();
   var beat = function(){ if(!document.hidden) GL.rpc('staff_heartbeat', {}).catch(function(){}); }; beat(); setInterval(beat, 30000);
   if(can('reception')){ var cnt = async function(){ if(document.hidden) return; try{ var t = await GL.select('support_threads', { select: 'id,last_customer_at,last_staff_at', status: 'eq.open', mode: 'eq.staff', limit: 500 });
       var n = t.filter(function(x){ return !x.last_staff_at || new Date(x.last_customer_at) > new Date(x.last_staff_at); }).length; S.waiting = n;

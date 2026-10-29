@@ -196,3 +196,17 @@ a.src{display:block;font-size:11px;color:var(--gold);margin-top:2px}
 .buyer-list li{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line,#333)}
 .buyer-list small{color:var(--mute,#888)}
 .buyer-list .btn{margin-left:auto}
+
+/* 使い方ナビ */
+#hlp-btn{position:fixed;z-index:120;right:18px;bottom:18px;padding:10px 16px;border-radius:999px;border:2px solid var(--gold,#c8ae7d);background:#1d1914;color:var(--gold-hi,#e6d3a8);font:inherit;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+#hlp-panel{position:fixed;z-index:121;right:18px;bottom:70px;width:min(440px,calc(100vw - 36px));max-height:min(78vh,720px);overflow:auto;background:var(--panel,#1a1a1a);border:1px solid var(--gold,#c8ae7d);border-radius:8px;padding:14px 16px;box-shadow:0 12px 32px rgba(0,0,0,.5);font-size:13.5px;line-height:1.7}
+#hlp-panel[hidden]{display:none}
+.hlp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hlp-head b{color:var(--gold-hi,#e6d3a8);font-size:15px}
+#hlp-q{width:100%;margin:0 0 8px}
+#hlp-panel h3{font-size:13.5px;color:var(--gold-hi,#e6d3a8);margin:12px 0 4px}
+#hlp-panel ul,#hlp-panel ol{margin:0;padding-left:20px}
+#hlp-panel li{margin:3px 0}
+.hlp-flow{list-style:none;padding-left:0!important}
+.hlp-flow li{display:grid;gap:2px;padding:6px 0;border-bottom:1px solid var(--line,#333)}
+.hlp-now{border:2px solid var(--bad,#D06A57);background:rgba(208,106,87,.1);border-radius:6px;padding:8px 10px;margin-bottom:6px}
