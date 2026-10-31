@@ -679,7 +679,7 @@ var ACTS = {
   aiitem: async function(slot){
     var x = (C.autoSheets || []).filter(function(s){ return String(s.slot) === String(slot); })[0]; if(!x) throw new Error('自動鑑定の結果が見つかりません');
     var ai = x.data.ai || {}, s1 = ai.s1 || {}, s2 = ai.s2 || {};
-    var cats = ['時計','宝石・ジュエリー','ブランドバッグ・小物','貴金属','美術品・骨董','その他'], cat = cats.indexOf(s1.category) >= 0 ? s1.category : ((C.app.categories || [])[0] || 'その他');
+    var cats = ['時計','宝石・ジュエリー','ブランドバッグ・小物','貴金属','美術品・骨董','自動車・バイク','その他'], cat = cats.indexOf(s1.category) >= 0 ? s1.category : ((C.app.categories || [])[0] || 'その他');
     await GL.insert('items', { application_id: C.app.id, category: cat, description: [s1.brand, s1.model, s1.ref].filter(Boolean).join(' '), quantity: 1,
       features: [s1.year ? '製造 ' + s1.year : '', (s1.evidence || {}).model || ''].filter(Boolean).join('／').slice(0, 300) || null, condition_note: [s2.rank ? 'ランク' + s2.rank + '（AIの仮判定）' : '', s2.note || ''].filter(Boolean).join('　').slice(0, 300) || null });
     return 'AIの判定から商品を登録しました。実物を確認して、違っていれば直してください';
@@ -983,6 +983,7 @@ var CHECKLIST = {
   'ブランドバッグ・小物': ['ロゴ刻印の書体・間隔・深さ', 'シリアル（製造番号）・タグの形式と年代の一致', '縫い目の数・間隔・糸の色', '金具の刻印・重さ・メッキの質感', '内側の素材・ポケットの作り', '保存袋・箱・ギャランティカードの一致'],
   '貴金属': ['刻印（K24・K18・Pt1000・SV925 など）', '重さの計量', '磁石に付かないか', '比重の測定（必要に応じて）', 'インゴットは刻印・番号・製造元の確認'],
   '美術品・骨董': ['作家の落款・サイン・共箱', '鑑定書・来歴の書類', '技法・素材・経年の状態', '専門家への照会の要否'],
+  '自動車・バイク': ['車検証の所有者・使用者（ローン会社・販売店の所有権留保がないか）', '車台番号が車検証と一致するか', '走行距離・修復歴・事故歴', '自動車税の納付状況・リサイクル券', '名義変更に必要な書類（印鑑証明書・譲渡証明書・委任状など）', '盗難車・不正改造の疑いがないか'],
   'その他': ['製造元・型番・製造番号', '動作の確認', '付属品の有無']
 };
 function drawFree(){
@@ -1078,7 +1079,7 @@ function drawMail(){
 }
 // ご案内文の品名を「商品と査定」に連動させる（査定をお客様に通知する前だけ。査定の権限が必要）
 function mailLinkOk(){ var ap = latestAppraisal(); return can('appraiser') && (!ap || ap.status === 'draft'); }
-var CATS = ['時計','宝石・ジュエリー','ブランドバッグ・小物','貴金属','美術品・骨董','その他'];
+var CATS = ['時計','宝石・ジュエリー','ブランドバッグ・小物','貴金属','美術品・骨董','自動車・バイク','その他'];
 async function syncMailItem(i, quiet){
   var r = MAIL.rows[i]; if(!r || !mailLinkOk()) return; var name = String(r.name || '').trim(); if(!name) return;
   try{
@@ -1396,7 +1397,7 @@ async function viewRates(){ var my = S.seq;
 // ── 実績相場（実際の買取額・卸値。鑑定シートの価格の基準と下限に使う） ──
 async function viewRefs(){ var my = S.seq;
   var rows = await GL.select('price_refs', { order: 'ref_date.desc,created_at.desc', limit: 2000 }); if(my !== S.seq) return;
-  var cats = ['時計','宝石・ジュエリー','ブランドバッグ・小物','貴金属','美術品・骨董','その他'];
+  var cats = ['時計','宝石・ジュエリー','ブランドバッグ・小物','貴金属','美術品・骨董','自動車・バイク','その他'];
   $('#main').innerHTML = top('実績相場', '')
     + '<p class="note">実際に買い取った金額と卸した金額を登録します。鑑定シートは、ブランドとモデルが同じ実績があれば、その卸値を価格の基準にし、買取額を提示額の下限にします（素材・柄とランクが同じものを優先）。実績がない品物は「実績なし・AI推定のため要確認」と表示されます。登録・変更は操作履歴に残り、削除はできません（使わない場合は「使わない」にします）。</p>'
     + (can('appraiser') ? '<div class="card"><form class="f" id="rf-add"><div class="row"><label class="l">品目<select name="category">' + cats.map(function(c){ return '<option' + (c === 'ブランドバッグ・小物' ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label><label class="l">ブランド<input name="brand" required placeholder="例：LOUIS VUITTON"></label><label class="l">モデル<input name="model" required placeholder="例：ポルトフォイユ・サラ"></label><label class="l">素材・柄<input name="line" placeholder="例：ダミエ・エベヌ"></label></div>'
