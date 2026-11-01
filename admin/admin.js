@@ -689,7 +689,7 @@ var ACTS = {
     var w = window.open('', '_blank'); if(!w) throw new Error('印刷用の画面を開けませんでした（ポップアップの許可をご確認ください）');
     w.document.write('<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>書留の宛名</title><style>@page{size:A6 landscape;margin:8mm}body{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;margin:0;padding:6mm;color:#000}.to{font-size:15pt;line-height:1.7}.nm{font-size:20pt;margin-top:4mm}.st{display:inline-block;border:2px solid #c00;color:#c00;font-weight:bold;font-size:14pt;padding:1mm 4mm;margin-bottom:4mm}.fr{margin-top:8mm;font-size:9pt;border-top:1px solid #999;padding-top:2mm}.no{font-size:8pt;color:#555}</style></head><body>'
       + '<div class="st">転送不要</div><div class="to">' + esc(r.address) + '</div><div class="nm">' + esc(r.full_name) + '　様</div>'
-      + '<div class="fr">差出人：G-LOVE（株式会社グローブ）〒544-0033 大阪府大阪市生野区勝山南2-2-7<br><span class="no">受付番号 ' + esc(C.app.receipt_no) + '　（品名や取引の内容は書かないでください）</span></div>'
+      + '<div class="fr">差出人：G-LOVE（株式会社グローブ）〒544-0021 大阪府大阪市生野区勝山南2-2-7<br><span class="no">受付番号 ' + esc(C.app.receipt_no) + '　（品名や取引の内容は書かないでください）</span></div>'
       + '<script>window.onload=function(){window.print()}<\/script></body></html>');
     w.document.close(); return '印刷の画面を開きました。郵便局で「簡易書留・転送不要」で差し出し、受け取った番号を本人確認欄に入力してください';
   },
